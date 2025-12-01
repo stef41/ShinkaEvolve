@@ -148,6 +148,15 @@ exp_name: "shinka_my_task"
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
+| `backend` | str | `"sqlite"` | Database backend (`"sqlite"` or `"postgres"`) |
+| `db_path` | str | `"evolution_db.sqlite"` | SQLite database file path |
+| `pg_host` | str | `"localhost"` | PostgreSQL host |
+| `pg_port` | int | 5432 | PostgreSQL port |
+| `pg_database` | str | `"shinka"` | PostgreSQL database name |
+| `pg_user` | str | `"postgres"` | PostgreSQL user |
+| `pg_password` | str | `""` | PostgreSQL password |
+| `pg_connection_string` | str | `None` | Full PostgreSQL connection string (overrides individual params) |
+| `pg_use_pgvector` | bool | `true` | Use pgvector extension for embedding similarity |
 | `num_islands` | int | 2 | Number of evolutionary islands |
 | `archive_size` | int | 20 | Size of elite solution archive |
 | `num_archive_inspirations` | int | 4 | Solutions drawn from archive |
@@ -157,6 +166,76 @@ exp_name: "shinka_my_task"
 | `migration_interval` | int | 10 | Generations between island migrations |
 | `migration_rate` | float | 0.1 | Fraction of population migrated |
 | `island_elitism` | bool | true | Preserve elites per island |
+
+#### Using PostgreSQL Backend
+
+For production deployments with high concurrency requirements, PostgreSQL is recommended.
+
+**Quick Start with Docker:**
+
+The easiest way to run PostgreSQL with pgvector is using Docker:
+
+```bash
+# Start PostgreSQL with persistent storage
+docker compose up -d
+
+# Verify it's running
+docker ps --filter name=shinka-postgres
+
+# Check logs
+docker logs shinka-postgres
+```
+
+This starts PostgreSQL on port 5433 with:
+- Username: `shinka`
+- Password: `shinka_dev`
+- Database: `shinka`
+- pgvector extension enabled
+
+The data is persisted in a Docker volume (`shinka_pgdata`).
+
+**Configure Shinka to use PostgreSQL:**
+
+```python
+from shinka.database import DatabaseConfig
+
+# Using individual parameters (Docker setup)
+db_config = DatabaseConfig(
+    backend="postgres",
+    pg_host="localhost",
+    pg_port=5433,  # Docker exposes on 5433
+    pg_database="shinka",
+    pg_user="shinka",
+    pg_password="shinka_dev",
+    pg_use_pgvector=True,  # Enable vector similarity search
+)
+
+# Or using a connection string
+db_config = DatabaseConfig(
+    backend="postgres",
+    pg_connection_string="postgres://shinka:shinka_dev@localhost:5433/shinka",
+)
+```
+
+**Managing the Docker container:**
+
+```bash
+# Stop PostgreSQL
+docker compose down
+
+# Stop and remove data (warning: deletes all data!)
+docker compose down -v
+
+# View logs
+docker logs -f shinka-postgres
+```
+
+**Note:** PostgreSQL requires `psycopg2`. Install it with:
+```bash
+pip install "shinka[postgres]"
+# or
+pip install psycopg2-binary
+```
 
 ### Resource Parameters
 

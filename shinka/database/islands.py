@@ -139,8 +139,9 @@ class CopyInitialProgramIslandStrategy(IslandStrategy):
             return
 
         # Check if this is the very first program in the database
-        self.cursor.execute("SELECT COUNT(*) FROM programs")
-        program_count = (self.cursor.fetchone() or [0])[0]
+        self.cursor.execute("SELECT COUNT(*) as count FROM programs")
+        result = self.cursor.fetchone()
+        program_count = result.get("count", result.get("COUNT(*)", 0)) if result else 0
         if program_count == 0:
             # This is the first program - assign to island 0
             program.island_idx = 0
@@ -235,10 +236,11 @@ class ElitistMigrationStrategy(IslandMigrationStrategy):
         for source_idx in range(num_islands):
             # Count programs in this island
             self.cursor.execute(
-                "SELECT COUNT(*) FROM programs WHERE island_idx = ?",
+                "SELECT COUNT(*) as count FROM programs WHERE island_idx = ?",
                 (source_idx,),
             )
-            island_size = (self.cursor.fetchone() or [0])[0]
+            result = self.cursor.fetchone()
+            island_size = result.get("count", result.get("COUNT(*)", 0)) if result else 0
 
             if island_size <= 1:
                 continue  # Skip tiny islands
@@ -335,11 +337,12 @@ class ElitistMigrationStrategy(IslandMigrationStrategy):
 
         # First check how many correct non-generation-0 programs are available
         self.cursor.execute(
-            "SELECT COUNT(*) FROM programs WHERE island_idx = ? AND "
+            "SELECT COUNT(*) as count FROM programs WHERE island_idx = ? AND "
             "generation > 0 AND correct = 1",
             (source_idx,),
         )
-        available_programs = (self.cursor.fetchone() or [0])[0]
+        result = self.cursor.fetchone()
+        available_programs = result.get("count", result.get("COUNT(*)", 0)) if result else 0
 
         if available_programs == 0:
             logger.debug(

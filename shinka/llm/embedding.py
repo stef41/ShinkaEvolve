@@ -26,6 +26,17 @@ GEMINI_EMBEDDING_MODELS = [
     "gemini-embedding-001",
 ]
 
+# Local embedding models using sentence-transformers
+LOCAL_EMBEDDING_MODELS = [
+    "local:all-MiniLM-L6-v2",           # Fast, 384 dims, good for general use
+    "local:all-mpnet-base-v2",          # Better quality, 768 dims
+    "local:paraphrase-MiniLM-L6-v2",    # Good for paraphrase/similarity
+    "local:multi-qa-MiniLM-L6-cos-v1",  # Optimized for Q&A
+    "local:BAAI/bge-small-en-v1.5",     # High quality, small
+    "local:BAAI/bge-base-en-v1.5",      # High quality, medium
+    "local:jinaai/jina-embeddings-v2-small-en",  # Good for code
+]
+
 OPENAI_EMBEDDING_COSTS = {
     "text-embedding-3-small": 0.02 / M,
     "text-embedding-3-large": 0.13 / M,
@@ -37,7 +48,33 @@ GEMINI_EMBEDDING_COSTS = {
     "gemini-embedding-001": 0.0 / M,  # Check current pricing
 }
 
-def get_client_model(model_name: str) -> tuple[Union[openai.OpenAI, str], str]:
+# Lazy load sentence-transformers to avoid import overhead
+_sentence_transformer_model = None
+
+
+def _get_sentence_transformer(model_name: str):
+    """Lazy load sentence-transformers model."""
+    global _sentence_transformer_model
+    
+    if _sentence_transformer_model is None or _sentence_transformer_model[0] != model_name:
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError:
+            raise ImportError(
+                "sentence-transformers is required for local embedding models. "
+                "Install it with: pip install sentence-transformers"
+            )
+        
+        # Extract model name from local: prefix
+        actual_model = model_name.replace("local:", "")
+        logger.info(f"Loading local embedding model: {actual_model}")
+        model = SentenceTransformer(actual_model)
+        _sentence_transformer_model = (model_name, model)
+    
+    return _sentence_transformer_model[1]
+
+
+def get_client_model(model_name: str) -> tuple[Union[openai.OpenAI, str, None], str]:
     if model_name in OPENAI_EMBEDDING_MODELS:
         client = openai.OpenAI()
         model_to_use = model_name
@@ -57,45 +94,76 @@ def get_client_model(model_name: str) -> tuple[Union[openai.OpenAI, str], str]:
         genai.configure(api_key=api_key)
         client = "gemini"  # Use string identifier for Gemini
         model_to_use = model_name
+    elif model_name.startswith("local:") or model_name in LOCAL_EMBEDDING_MODELS:
+        # Local model using sentence-transformers
+        client = None  # Will use sentence-transformers directly
+        model_to_use = model_name if model_name.startswith("local:") else f"local:{model_name}"
     else:
         raise ValueError(f"Invalid embedding model: {model_name}")
 
     return client, model_to_use
 
 
+def is_local_model(model_name: str) -> bool:
+    """Check if the model is a local embedding model."""
+    return model_name.startswith("local:") or model_name in LOCAL_EMBEDDING_MODELS
+
+
 class EmbeddingClient:
     def __init__(
-        self, model_name: str = "text-embedding-3-small", verbose: bool = False
+        self, model_name: str = "local:all-MiniLM-L6-v2", verbose: bool = False
     ):
         """
         Initialize the EmbeddingClient.
 
         Args:
-            model (str): The OpenAI, Azure, or Gemini embedding model name to use.
+            model (str): The embedding model name to use. Supports:
+                - OpenAI: "text-embedding-3-small", "text-embedding-3-large"
+                - Azure: "azure-text-embedding-3-small", "azure-text-embedding-3-large"
+                - Gemini: "gemini-embedding-exp-03-07", "gemini-embedding-001"
+                - Local: "local:all-MiniLM-L6-v2", "local:all-mpnet-base-v2", etc.
         """
         self.client, self.model = get_client_model(model_name)
         self.model_name = model_name
         self.verbose = verbose
+        self._local_model = None  # Lazy loaded
 
     def get_embedding(
         self, code: Union[str, List[str]]
     ) -> Union[Tuple[List[float], float], Tuple[List[List[float]], float]]:
         """
-        Computes the text embedding for a CUDA kernel string.
+        Computes the text embedding for code strings.
 
         Args:
-            code (str, list[str]): The CUDA kernel code as a string or list
-                of strings.
+            code (str, list[str]): The code as a string or list of strings.
 
         Returns:
-            list: Embedding vector for the kernel code or None if an error
-                occurs.
+            tuple: (embedding vector(s), cost). Cost is 0.0 for local models.
         """
         if isinstance(code, str):
             code = [code]
             single_code = True
         else:
             single_code = False
+        
+        # Handle local models using sentence-transformers
+        if is_local_model(self.model_name):
+            try:
+                model = _get_sentence_transformer(self.model_name)
+                embeddings = model.encode(code, convert_to_numpy=True)
+                embeddings_list = embeddings.tolist()
+                
+                if single_code:
+                    return embeddings_list[0], 0.0  # No cost for local models
+                else:
+                    return embeddings_list, 0.0
+            except Exception as e:
+                logger.error(f"Error getting local embedding: {e}")
+                if single_code:
+                    return [], 0.0
+                else:
+                    return [[]], 0.0
+        
         # Handle Gemini models
         if self.model_name in GEMINI_EMBEDDING_MODELS:
             try:

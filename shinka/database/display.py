@@ -174,7 +174,12 @@ class DatabaseDisplay:
             self.cursor.execute(query)
             for row in self.cursor.fetchall():
                 if row["metadata"]:
-                    metadata = json.loads(row["metadata"] or "{}")
+                    # Handle both SQLite (string) and PostgreSQL (dict) metadata
+                    raw_metadata = row["metadata"]
+                    if isinstance(raw_metadata, dict):
+                        metadata = raw_metadata
+                    else:
+                        metadata = json.loads(raw_metadata or "{}")
                     if "api_costs" in metadata:
                         total_api_cost += float(metadata["api_costs"])
                     if "embed_cost" in metadata:
@@ -218,8 +223,9 @@ class DatabaseDisplay:
         summary_table.add_row("Total Programs", f"[bold]{total_programs}[/bold]")
 
         # Correctness info
-        self.cursor.execute("SELECT COUNT(*) FROM programs WHERE correct = 1")
-        correct_programs = (self.cursor.fetchone() or [0])[0]
+        self.cursor.execute("SELECT COUNT(*) as count FROM programs WHERE correct = 1")
+        result = self.cursor.fetchone()
+        correct_programs = result.get("count", result.get("COUNT(*)", 0)) if result else 0
         correct_percentage = (
             (correct_programs / total_programs * 100) if total_programs > 0 else 0
         )
@@ -230,8 +236,9 @@ class DatabaseDisplay:
         )
 
         # Archive info
-        self.cursor.execute("SELECT COUNT(*) FROM archive")
-        archive_count = (self.cursor.fetchone() or [0])[0]
+        self.cursor.execute("SELECT COUNT(*) as count FROM archive")
+        result = self.cursor.fetchone()
+        archive_count = result.get("count", result.get("COUNT(*)", 0)) if result else 0
         archive_percentage = (
             (archive_count / self.config.archive_size * 100)
             if self.config.archive_size > 0
@@ -399,21 +406,25 @@ class DatabaseDisplay:
             _console.print(msg)
             return
 
+        # Helper function to deserialize JSON (handles both SQLite and PostgreSQL)
+        def _deserialize_json(value, default=None):
+            if value is None:
+                return default if default is not None else {}
+            if isinstance(value, (dict, list)):
+                return value
+            if isinstance(value, str):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return default if default is not None else {}
+            return default if default is not None else {}
+
         # Process top performing programs
         for rank, row_data in enumerate(top_program_rows, 1):
             p_dict = dict(row_data)
-            p_dict["public_metrics"] = (
-                json.loads(p_dict["public_metrics"])
-                if p_dict.get("public_metrics")
-                else {}
-            )
-            p_dict["private_metrics"] = (
-                json.loads(p_dict["private_metrics"])
-                if p_dict.get("private_metrics")
-                else {}
-            )
-            metadata_str = p_dict.get("metadata")
-            p_dict["metadata"] = json.loads(metadata_str) if metadata_str else {}
+            p_dict["public_metrics"] = _deserialize_json(p_dict.get("public_metrics"), default={})
+            p_dict["private_metrics"] = _deserialize_json(p_dict.get("private_metrics"), default={})
+            p_dict["metadata"] = _deserialize_json(p_dict.get("metadata"), default={})
             # Make sure 'correct' is properly converted to boolean
             if "correct" in p_dict:
                 p_dict["correct"] = bool(p_dict["correct"])

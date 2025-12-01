@@ -4,7 +4,10 @@ __pycache__/
 *$py.class
 .DS_Store
 
+tmp/
 results/
+
+results_e2e_test/
 
 # C extensions
 *.so

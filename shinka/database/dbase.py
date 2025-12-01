@@ -14,6 +14,7 @@ from .parents import CombinedParentSelector
 from .inspirations import CombinedContextSelector
 from .islands import CombinedIslandManager
 from .display import DatabaseDisplay
+from .backends import create_backend, DatabaseBackend, BackendType, POSTGRES_AVAILABLE
 from shinka.llm.embedding import EmbeddingClient
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,24 @@ def clean_nan_values(obj: Any) -> Any:
 
 @dataclass
 class DatabaseConfig:
+    # Backend configuration
+    backend: str = "sqlite"  # "sqlite" or "postgres"
+    
+    # SQLite-specific settings
     db_path: str = "evolution_db.sqlite"
+    
+    # PostgreSQL-specific settings
+    pg_host: str = "localhost"
+    pg_port: int = 5432
+    pg_database: str = "shinka"
+    pg_user: str = "postgres"
+    pg_password: str = ""
+    pg_connection_string: Optional[str] = None
+    pg_min_connections: int = 1
+    pg_max_connections: int = 10
+    pg_use_pgvector: bool = True
+    
+    # Island configuration
     num_islands: int = 4
     archive_size: int = 100
 
@@ -82,13 +100,23 @@ class DatabaseConfig:
     # Beam search parent selection parameters
     num_beams: int = 5
 
-    # Embedding model name
-    embedding_model: str = "text-embedding-3-small"
+    # Embedding model name (use local: prefix for sentence-transformers models)
+    embedding_model: str = "local:all-MiniLM-L6-v2"
+
+
+# Try to import psycopg2 for PostgreSQL error handling
+try:
+    import psycopg2
+    PSYCOPG2_AVAILABLE = True
+except ImportError:
+    psycopg2 = None
+    PSYCOPG2_AVAILABLE = False
 
 
 def db_retry(max_retries=5, initial_delay=0.1, backoff_factor=2):
     """
-    A decorator to retry database operations on specific SQLite errors.
+    A decorator to retry database operations on transient database errors.
+    Supports both SQLite and PostgreSQL.
     """
 
     def decorator(func):
@@ -116,6 +144,32 @@ def db_retry(max_retries=5, initial_delay=0.1, backoff_factor=2):
                     )
                     time.sleep(delay)
                     delay *= backoff_factor
+                except Exception as e:
+                    # Handle PostgreSQL errors if psycopg2 is available
+                    if PSYCOPG2_AVAILABLE:
+                        if isinstance(e, (psycopg2.OperationalError, psycopg2.DatabaseError, psycopg2.ProgrammingError)):
+                            # For PostgreSQL, rollback failed transaction before retry
+                            if args and hasattr(args[0], 'conn') and args[0].conn:
+                                try:
+                                    args[0].conn.rollback()
+                                except Exception:
+                                    pass  # Ignore rollback errors
+                            if i == max_retries - 1:
+                                logger.error(
+                                    f"DB operation {func.__name__} failed after "
+                                    f"{max_retries} retries: {e}"
+                                )
+                                raise
+                            logger.warning(
+                                f"DB operation {func.__name__} failed with "
+                                f"{type(e).__name__}: {e}. "
+                                f"Retrying in {delay:.2f}s..."
+                            )
+                            time.sleep(delay)
+                            delay *= backoff_factor
+                            continue
+                    # Re-raise non-retryable exceptions
+                    raise
             # This part should not be reachable if max_retries > 0
             raise RuntimeError(
                 f"DB retry logic failed for function {func.__name__} without "
@@ -245,8 +299,12 @@ class Program:
 
 class ProgramDatabase:
     """
-    SQLite-backed database for storing and managing programs during an
-    evolutionary process.
+    Database for storing and managing programs during an evolutionary process.
+    
+    Supports multiple database backends (SQLite and PostgreSQL) through the
+    backends abstraction. SQLite is the default for local development, while
+    PostgreSQL is recommended for production with high concurrency needs.
+    
     Supports MAP-Elites style feature-based organization, island
     populations, and an archive of elites.
     """
@@ -254,13 +312,26 @@ class ProgramDatabase:
     def __init__(
         self,
         config: DatabaseConfig,
-        embedding_model: str = "text-embedding-3-small",
+        embedding_model: str = "local:all-MiniLM-L6-v2",
         read_only: bool = False,
     ):
         self.config = config
-        self.conn: Optional[sqlite3.Connection] = None
-        self.cursor: Optional[sqlite3.Cursor] = None
         self.read_only = read_only
+        
+        # Initialize the database backend
+        self.backend: Optional[DatabaseBackend] = None
+        self._init_backend()
+        
+        # For backward compatibility, expose conn and cursor
+        # These will be raw connections from the backend
+        self.conn = None
+        self.cursor = None
+        if self.backend:
+            if hasattr(self.backend, 'get_raw_connection'):
+                self.conn = self.backend.get_raw_connection()
+            if hasattr(self.backend, 'get_raw_cursor'):
+                self.cursor = self.backend.get_raw_cursor()
+        
         # Only create embedding client if not in read-only mode
         # (e.g., WebUI doesn't need it for visualization)
         if not read_only:
@@ -277,48 +348,6 @@ class ProgramDatabase:
         # Initialize island manager (will be set after db connection)
         self.island_manager: Optional[CombinedIslandManager] = None
 
-        db_path_str = getattr(self.config, "db_path", None)
-
-        if db_path_str:
-            db_file = Path(db_path_str).resolve()
-            if not read_only:
-                # Robustness check for unclean shutdown with WAL
-                db_wal_file = Path(f"{db_file}-wal")
-                db_shm_file = Path(f"{db_file}-shm")
-                if (
-                    db_file.exists()
-                    and db_file.stat().st_size == 0
-                    and (db_wal_file.exists() or db_shm_file.exists())
-                ):
-                    logger.warning(
-                        f"Database file {db_file} is empty but WAL/SHM files "
-                        "exist. This may indicate an unclean shutdown. "
-                        "Removing WAL/SHM files to attempt recovery."
-                    )
-                    if db_wal_file.exists():
-                        db_wal_file.unlink()
-                    if db_shm_file.exists():
-                        db_shm_file.unlink()
-                db_file.parent.mkdir(parents=True, exist_ok=True)
-                self.conn = sqlite3.connect(str(db_file), timeout=30.0)
-                logger.debug(f"Connected to SQLite database: {db_file}")
-            else:
-                if not db_file.exists():
-                    raise FileNotFoundError(
-                        f"Database file not found for read-only connection: {db_file}"
-                    )
-                db_uri = f"file:{db_file}?mode=ro"
-                self.conn = sqlite3.connect(db_uri, uri=True, timeout=30.0)
-                logger.debug(
-                    "Connected to SQLite database in read-only mode: %s",
-                    db_file,
-                )
-        else:
-            self.conn = sqlite3.connect(":memory:")
-            logger.info("Initialized in-memory SQLite database.")
-
-        self.conn.row_factory = sqlite3.Row
-        self.cursor = self.conn.cursor()
         if not self.read_only:
             self._create_tables()
         self._load_metadata_from_db()
@@ -335,88 +364,138 @@ class ProgramDatabase:
         logger.debug(
             f"Last iter: {self.last_iteration}. Best ID: {self.best_program_id}"
         )
+    
+    def _init_backend(self) -> None:
+        """Initialize the appropriate database backend based on config."""
+        backend_type = getattr(self.config, 'backend', 'sqlite')
+        
+        if backend_type == 'sqlite':
+            db_path = getattr(self.config, 'db_path', 'evolution_db.sqlite')
+            self.backend = create_backend(
+                backend_type='sqlite',
+                db_path=db_path,
+                read_only=self.read_only,
+            )
+        elif backend_type in ('postgres', 'postgresql'):
+            self.backend = create_backend(
+                backend_type='postgres',
+                host=getattr(self.config, 'pg_host', 'localhost'),
+                port=getattr(self.config, 'pg_port', 5432),
+                database=getattr(self.config, 'pg_database', 'shinka'),
+                user=getattr(self.config, 'pg_user', 'postgres'),
+                password=getattr(self.config, 'pg_password', ''),
+                connection_string=getattr(self.config, 'pg_connection_string', None),
+                min_connections=getattr(self.config, 'pg_min_connections', 1),
+                max_connections=getattr(self.config, 'pg_max_connections', 10),
+                read_only=self.read_only,
+                use_pgvector=getattr(self.config, 'pg_use_pgvector', True),
+            )
+        else:
+            raise ValueError(f"Unknown backend type: {backend_type}")
+        
+        self.backend.connect()
+        logger.info(f"Using {backend_type} database backend")
 
     def _create_tables(self):
-        if not self.cursor or not self.conn:
+        if not self.backend or not self.backend.is_connected:
             raise ConnectionError("DB not connected.")
 
-        # Set SQLite pragmas for better performance and stability
-        # Use WAL mode for better concurrency support and reduced locking
-        self.cursor.execute("PRAGMA journal_mode = WAL;")
-        self.cursor.execute("PRAGMA busy_timeout = 30000;")  # 30 second busy timeout
-        self.cursor.execute(
-            "PRAGMA wal_autocheckpoint = 1000;"
-        )  # Checkpoint every 1000 pages
-        self.cursor.execute("PRAGMA synchronous = NORMAL;")  # Safer, faster
-        self.cursor.execute("PRAGMA cache_size = -64000;")  # 64MB cache
-        self.cursor.execute("PRAGMA temp_store = MEMORY;")
-        self.cursor.execute("PRAGMA foreign_keys = ON;")  # For data integrity
-
-        self.cursor.execute(
+        backend_type = self.backend.get_backend_type()
+        
+        # SQLite-specific pragmas are handled in the backend
+        # For PostgreSQL, optimizations are handled differently
+        
+        # Create programs table with backend-appropriate syntax
+        if backend_type == BackendType.SQLITE:
+            programs_table = """
+                CREATE TABLE IF NOT EXISTS programs (
+                    id TEXT PRIMARY KEY,
+                    code TEXT NOT NULL,
+                    language TEXT NOT NULL,
+                    parent_id TEXT,
+                    archive_inspiration_ids TEXT,
+                    top_k_inspiration_ids TEXT,
+                    generation INTEGER NOT NULL,
+                    timestamp REAL NOT NULL,
+                    code_diff TEXT,
+                    combined_score REAL,
+                    public_metrics TEXT,
+                    private_metrics TEXT,
+                    text_feedback TEXT,
+                    complexity REAL,
+                    embedding TEXT,
+                    embedding_pca_2d TEXT,
+                    embedding_pca_3d TEXT,
+                    embedding_cluster_id INTEGER,
+                    correct BOOLEAN DEFAULT 0,
+                    children_count INTEGER NOT NULL DEFAULT 0,
+                    metadata TEXT,
+                    migration_history TEXT,
+                    island_idx INTEGER
+                )
             """
-            CREATE TABLE IF NOT EXISTS programs (
-                id TEXT PRIMARY KEY,
-                code TEXT NOT NULL,
-                language TEXT NOT NULL,
-                parent_id TEXT,
-                archive_inspiration_ids TEXT,  -- JSON serialized List[str]
-                top_k_inspiration_ids TEXT,    -- JSON serialized List[str]
-                generation INTEGER NOT NULL,
-                timestamp REAL NOT NULL,
-                code_diff TEXT,     -- Stores edit difference
-                combined_score REAL,
-                public_metrics TEXT, -- JSON serialized Dict[str, Any]
-                private_metrics TEXT, -- JSON serialized Dict[str, Any]
-                text_feedback TEXT, -- Text feedback for the program
-                complexity REAL,   -- Calculated complexity metric
-                embedding TEXT,    -- JSON serialized List[float]
-                embedding_pca_2d TEXT, -- JSON serialized List[float]
-                embedding_pca_3d TEXT, -- JSON serialized List[float]
-                embedding_cluster_id INTEGER,
-                correct BOOLEAN DEFAULT 0,  -- Correct (0=False, 1=True)
-                children_count INTEGER NOT NULL DEFAULT 0,
-                metadata TEXT,      -- JSON serialized Dict[str, Any]
-                migration_history TEXT, -- JSON of migration events
-                island_idx INTEGER  -- Add island_idx to the schema
-            )
+        else:  # PostgreSQL
+            programs_table = """
+                CREATE TABLE IF NOT EXISTS programs (
+                    id TEXT PRIMARY KEY,
+                    code TEXT NOT NULL,
+                    language TEXT NOT NULL,
+                    parent_id TEXT,
+                    archive_inspiration_ids JSONB,
+                    top_k_inspiration_ids JSONB,
+                    generation INTEGER NOT NULL,
+                    timestamp DOUBLE PRECISION NOT NULL,
+                    code_diff TEXT,
+                    combined_score DOUBLE PRECISION,
+                    public_metrics JSONB,
+                    private_metrics JSONB,
+                    text_feedback TEXT,
+                    complexity DOUBLE PRECISION,
+                    embedding JSONB,
+                    embedding_pca_2d JSONB,
+                    embedding_pca_3d JSONB,
+                    embedding_cluster_id INTEGER,
+                    correct BOOLEAN DEFAULT FALSE,
+                    children_count INTEGER NOT NULL DEFAULT 0,
+                    metadata JSONB,
+                    migration_history JSONB,
+                    island_idx INTEGER
+                )
             """
-        )
+        
+        self.backend.execute(programs_table)
 
         # Add indices for common query patterns
         idx_cmds = [
-            "CREATE INDEX IF NOT EXISTS idx_programs_generation ON "
-            "programs(generation)",
+            "CREATE INDEX IF NOT EXISTS idx_programs_generation ON programs(generation)",
             "CREATE INDEX IF NOT EXISTS idx_programs_timestamp ON programs(timestamp)",
-            "CREATE INDEX IF NOT EXISTS idx_programs_complexity ON "
-            "programs(complexity)",
+            "CREATE INDEX IF NOT EXISTS idx_programs_complexity ON programs(complexity)",
             "CREATE INDEX IF NOT EXISTS idx_programs_parent_id ON programs(parent_id)",
-            "CREATE INDEX IF NOT EXISTS idx_programs_children_count ON "
-            "programs(children_count)",
-            "CREATE INDEX IF NOT EXISTS idx_programs_island_idx ON "
-            "programs(island_idx)",
+            "CREATE INDEX IF NOT EXISTS idx_programs_children_count ON programs(children_count)",
+            "CREATE INDEX IF NOT EXISTS idx_programs_island_idx ON programs(island_idx)",
         ]
         for cmd in idx_cmds:
-            self.cursor.execute(cmd)
+            self.backend.execute(cmd)
 
-        self.cursor.execute(
-            """
+        # Create archive table
+        archive_table = """
             CREATE TABLE IF NOT EXISTS archive (
                 program_id TEXT PRIMARY KEY,
                 FOREIGN KEY (program_id) REFERENCES programs(id)
                     ON DELETE CASCADE
             )
-            """
-        )
+        """
+        self.backend.execute(archive_table)
 
-        self.cursor.execute(
-            """
+        # Create metadata store table
+        metadata_table = """
             CREATE TABLE IF NOT EXISTS metadata_store (
                 key TEXT PRIMARY KEY, value TEXT
             )
-            """
-        )
+        """
+        self.backend.execute(metadata_table)
 
-        self.conn.commit()
+        self.backend.commit()
 
         # Run any necessary migrations
         self._run_migrations()
@@ -425,23 +504,19 @@ class ProgramDatabase:
 
     def _run_migrations(self):
         """Run database migrations for schema changes."""
-        if not self.cursor or not self.conn:
+        if not self.backend or not self.backend.is_connected:
             raise ConnectionError("DB not connected.")
 
         # Migration 1: Add text_feedback column if it doesn't exist
         try:
-            # Check if text_feedback column exists
-            self.cursor.execute("PRAGMA table_info(programs)")
-            columns = [row[1] for row in self.cursor.fetchall()]
-
-            if "text_feedback" not in columns:
+            if not self.backend.column_exists("programs", "text_feedback"):
                 logger.info("Adding text_feedback column to programs table")
-                self.cursor.execute(
-                    "ALTER TABLE programs ADD COLUMN text_feedback TEXT DEFAULT ''"
+                self.backend.add_column(
+                    "programs", "text_feedback", "TEXT", default="''"
                 )
-                self.conn.commit()
+                self.backend.commit()
                 logger.info("Successfully added text_feedback column")
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"Error during text_feedback migration: {e}")
             # Don't raise - this is not critical for existing functionality
 
@@ -495,7 +570,7 @@ class ProgramDatabase:
             raise ConnectionError("DB not connected.")
         self.cursor.execute(
             "INSERT OR REPLACE INTO metadata_store (key, value) VALUES (?, ?)",
-            (key, value),  # SQLite handles None as NULL
+            (key, value),
         )
         self.conn.commit()
 
@@ -503,8 +578,12 @@ class ProgramDatabase:
     def _count_programs_in_db(self) -> int:
         if not self.cursor:
             return 0
-        self.cursor.execute("SELECT COUNT(*) FROM programs")
-        return (self.cursor.fetchone() or {"COUNT(*)": 0})["COUNT(*)"]
+        self.cursor.execute("SELECT COUNT(*) as count FROM programs")
+        result = self.cursor.fetchone()
+        if not result:
+            return 0
+        # Handle both SQLite (COUNT(*)) and PostgreSQL (count) column names
+        return result.get("count", result.get("COUNT(*)", 0))
 
     @db_retry()
     def add(self, program: Program, verbose: bool = False) -> str:
@@ -577,8 +656,11 @@ class ProgramDatabase:
         else:
             text_feedback_str = str(text_feedback_str)
 
-        # Begin transaction - this improves performance by batching operations
-        self.conn.execute("BEGIN TRANSACTION")
+        # Begin transaction - PostgreSQL starts transactions automatically
+        # For SQLite we need explicit BEGIN
+        backend_type = self.backend.get_backend_type()
+        if backend_type == BackendType.SQLITE:
+            self.conn.execute("BEGIN TRANSACTION")
 
         try:
             # Insert the program in a single operation
@@ -686,6 +768,25 @@ class ProgramDatabase:
         self.check_scheduled_operations()
         return program.id
 
+    def _deserialize_json(self, value, default=None):
+        """
+        Safely deserialize a JSON value from the database.
+        
+        Handles both:
+        - SQLite: Returns JSON as strings that need to be parsed
+        - PostgreSQL JSONB: Returns JSON directly as Python dicts/lists
+        """
+        if value is None:
+            return default if default is not None else {}
+        if isinstance(value, (dict, list)):
+            return value
+        if isinstance(value, str):
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                return default if default is not None else {}
+        return default if default is not None else {}
+
     def _program_from_row(self, row: sqlite3.Row) -> Optional[Program]:
         """Helper to create a Program object from a database row."""
         if not row:
@@ -693,110 +794,44 @@ class ProgramDatabase:
 
         program_data = dict(row)
 
-        # Use faster json loads
-        public_metrics_text = program_data.get("public_metrics")
-        if public_metrics_text:
-            try:
-                program_data["public_metrics"] = json.loads(public_metrics_text)
-            except json.JSONDecodeError:
-                program_data["public_metrics"] = {}
-        else:
-            program_data["public_metrics"] = {}
-
-        private_metrics_text = program_data.get("private_metrics")
-        if private_metrics_text:
-            try:
-                program_data["private_metrics"] = json.loads(private_metrics_text)
-            except json.JSONDecodeError:
-                program_data["private_metrics"] = {}
-        else:
-            program_data["private_metrics"] = {}
-
-        # Same for metadata
-        metadata_text = program_data.get("metadata")
-        if metadata_text:
-            try:
-                program_data["metadata"] = json.loads(metadata_text)
-            except json.JSONDecodeError:
-                program_data["metadata"] = {}
-        else:
-            program_data["metadata"] = {}
+        # Use helper for JSON deserialization (handles both SQLite and PostgreSQL)
+        program_data["public_metrics"] = self._deserialize_json(
+            program_data.get("public_metrics"), default={}
+        )
+        program_data["private_metrics"] = self._deserialize_json(
+            program_data.get("private_metrics"), default={}
+        )
+        program_data["metadata"] = self._deserialize_json(
+            program_data.get("metadata"), default={}
+        )
 
         # Handle text_feedback (simple string field)
         if "text_feedback" not in program_data or program_data["text_feedback"] is None:
             program_data["text_feedback"] = ""
 
-        # Handle inspiration_ids
-        archive_insp_ids_text = program_data.get("archive_inspiration_ids")
-        if archive_insp_ids_text:
-            try:
-                program_data["archive_inspiration_ids"] = json.loads(
-                    archive_insp_ids_text
-                )
-            except json.JSONDecodeError:
-                program_data["archive_inspiration_ids"] = []
-        else:
-            program_data["archive_inspiration_ids"] = []
+        # Handle inspiration_ids with helper (works for both SQLite and PostgreSQL)
+        program_data["archive_inspiration_ids"] = self._deserialize_json(
+            program_data.get("archive_inspiration_ids"), default=[]
+        )
+        program_data["top_k_inspiration_ids"] = self._deserialize_json(
+            program_data.get("top_k_inspiration_ids"), default=[]
+        )
 
-        top_k_insp_ids_text = program_data.get("top_k_inspiration_ids")
-        if top_k_insp_ids_text:
-            try:
-                program_data["top_k_inspiration_ids"] = json.loads(top_k_insp_ids_text)
-            except json.JSONDecodeError:
-                logger.warning(
-                    "Could not decode top_k_inspiration_ids for "
-                    f"program {program_data.get('id')}. "
-                    "Defaulting to empty list."
-                )
-                program_data["top_k_inspiration_ids"] = []
-        else:
-            program_data["top_k_inspiration_ids"] = []
-
-        # Handle embedding
-        embedding_text = program_data.get("embedding")
-        if embedding_text:
-            try:
-                program_data["embedding"] = json.loads(embedding_text)
-            except json.JSONDecodeError:
-                logger.warning(
-                    f"Could not decode embedding for program "
-                    f"{program_data.get('id')}. Defaulting to empty list."
-                )
-                program_data["embedding"] = []
-        else:
-            program_data["embedding"] = []
-
-        embedding_pca_2d_text = program_data.get("embedding_pca_2d")
-        if embedding_pca_2d_text:
-            try:
-                program_data["embedding_pca_2d"] = json.loads(embedding_pca_2d_text)
-            except json.JSONDecodeError:
-                program_data["embedding_pca_2d"] = []
-        else:
-            program_data["embedding_pca_2d"] = []
-
-        embedding_pca_3d_text = program_data.get("embedding_pca_3d")
-        if embedding_pca_3d_text:
-            try:
-                program_data["embedding_pca_3d"] = json.loads(embedding_pca_3d_text)
-            except json.JSONDecodeError:
-                program_data["embedding_pca_3d"] = []
-        else:
-            program_data["embedding_pca_3d"] = []
+        # Handle embedding with helper
+        program_data["embedding"] = self._deserialize_json(
+            program_data.get("embedding"), default=[]
+        )
+        program_data["embedding_pca_2d"] = self._deserialize_json(
+            program_data.get("embedding_pca_2d"), default=[]
+        )
+        program_data["embedding_pca_3d"] = self._deserialize_json(
+            program_data.get("embedding_pca_3d"), default=[]
+        )
 
         # Handle migration_history
-        migration_history_text = program_data.get("migration_history")
-        if migration_history_text:
-            try:
-                program_data["migration_history"] = json.loads(migration_history_text)
-            except json.JSONDecodeError:
-                logger.warning(
-                    f"Could not decode migration_history for program "
-                    f"{program_data.get('id')}. Defaulting to empty list."
-                )
-                program_data["migration_history"] = []
-        else:
-            program_data["migration_history"] = []
+        program_data["migration_history"] = self._deserialize_json(
+            program_data.get("migration_history"), default=[]
+        )
 
         # Handle archive status
         program_data["in_archive"] = bool(program_data.get("in_archive", 0))
@@ -1323,8 +1358,9 @@ class ProgramDatabase:
             logger.debug(f"Program {program.id} not added to archive (not correct).")
             return
 
-        self.cursor.execute("SELECT COUNT(*) FROM archive")
-        count = (self.cursor.fetchone() or [0])[0]
+        self.cursor.execute("SELECT COUNT(*) as count FROM archive")
+        result = self.cursor.fetchone()
+        count = result.get("count", result.get("COUNT(*)", 0)) if result else 0
 
         if count < self.config.archive_size:
             self.cursor.execute(
@@ -1459,8 +1495,11 @@ class ProgramDatabase:
 
     def close(self):
         """Closes the database connection."""
-        if self.conn:
-            self.conn.close()
+        if self.backend:
+            self.backend.close()
+            self.backend = None
+            self.conn = None
+            self.cursor = None
 
     def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """Compute cosine similarity between two vectors."""
@@ -1737,7 +1776,11 @@ class ProgramDatabase:
             return
 
         program_ids = [row["id"] for row in rows]
-        embeddings = [json.loads(row["embedding"]) for row in rows]
+        # Handle both SQLite (string) and PostgreSQL (list) embedding formats
+        embeddings = [
+            self._deserialize_json(row["embedding"], default=[])
+            for row in rows
+        ]
 
         # Use EmbeddingClient for dim reduction and clustering
         try:
@@ -1759,7 +1802,9 @@ class ProgramDatabase:
             return
 
         # Update all programs in a single transaction
-        self.conn.execute("BEGIN TRANSACTION")
+        backend_type = self.backend.get_backend_type()
+        if backend_type == BackendType.SQLITE:
+            self.conn.execute("BEGIN TRANSACTION")
         try:
             for i, program_id in enumerate(program_ids):
                 embedding_pca_2d_json = json.dumps(reduced_2d[i].tolist())

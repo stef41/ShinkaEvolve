@@ -505,10 +505,11 @@ class BeamSearchSamplingStrategy(ParentSamplingStrategy):
             if parent:
                 # Check if we should continue with this parent based on num_beams
                 self.cursor.execute(
-                    "SELECT COUNT(*) FROM programs WHERE parent_id = ?",
+                    "SELECT COUNT(*) as count FROM programs WHERE parent_id = ?",
                     (self.beam_search_parent_id,),
                 )
-                children_count = (self.cursor.fetchone() or [0])[0]
+                result = self.cursor.fetchone()
+                children_count = result.get("count", result.get("COUNT(*)", 0)) if result else 0
 
                 if children_count < num_beams:
                     logger.info(

@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: shinka-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: shinka
+      POSTGRES_PASSWORD: shinka_dev
+      POSTGRES_DB: shinka
+    ports:
+      - "5433:5432"
+    volumes:
+      - shinka_pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shinka -d shinka"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  shinka_pgdata:
+    name: shinka_pgdata

@@ -48,6 +48,21 @@ dependencies = [
     "google-generativeai",
 ]
 
+[project.optional-dependencies]
+postgres = [
+    "psycopg2-binary>=2.9.0",
+]
+local-embeddings = [
+    "sentence-transformers>=2.2.0",
+]
+all = [
+    "psycopg2-binary>=2.9.0",
+    "sentence-transformers>=2.2.0",
+]
+
+[project.scripts]
+shinka-migrate = "shinka.database.migrate:main"
+
 [tool.setuptools]
 script-files = ["shinka/shinka_launch", "shinka/shinka_visualize"]
 

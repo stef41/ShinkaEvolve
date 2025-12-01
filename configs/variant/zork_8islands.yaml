@@ -1,0 +1,18 @@
+# Fresh Zork evolution with 8 islands, seeded with best solution
+
+variant_suffix: "_8islands"
+
+verbose: true
+
+# 8 islands for maximum diversity
+db_config:
+  num_islands: 8
+  archive_size: 50
+
+# Run indefinitely with 8 parallel jobs using DUAL LLM endpoints
+evo_config:
+  num_generations: 1000000  # Infinite until manually stopped
+  max_parallel_jobs: 8  # 8 jobs shared across 2 LLM servers (4 per server avg)
+  init_program_path: examples/zork/best_gen745.py  # Start with best solution (35 points)
+  llm_models:
+    - openai/gpt-oss-120b@http://localhost:8000/v1

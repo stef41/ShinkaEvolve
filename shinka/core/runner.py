@@ -279,10 +279,23 @@ class EvolutionRunner:
         db_config: DatabaseConfig,
     ) -> None:
         """Save experiment configuration to a YAML file."""
+        def make_serializable(obj):
+            """Convert non-serializable objects to strings."""
+            if isinstance(obj, dict):
+                return {k: make_serializable(v) for k, v in obj.items()}
+            elif isinstance(obj, (list, tuple)):
+                return [make_serializable(item) for item in obj]
+            elif isinstance(obj, (str, int, float, bool, type(None))):
+                return obj
+            elif hasattr(obj, '__name__'):
+                return f"<{obj.__name__}>"
+            else:
+                return str(obj)
+        
         config_data = {
-            "evolution_config": asdict(evo_config),
-            "job_config": asdict(job_config),
-            "database_config": asdict(db_config),
+            "evolution_config": make_serializable(asdict(evo_config)),
+            "job_config": make_serializable(asdict(job_config)),
+            "database_config": make_serializable(asdict(db_config)),
             "timestamp": datetime.now().isoformat(),
             "results_directory": str(self.results_dir),
         }
@@ -344,7 +357,8 @@ class EvolutionRunner:
                     break
 
                 # Submit new jobs to fill the queue (only if we have capacity)
-                if (
+                # Fill queue completely instead of one at a time
+                while (
                     len(self.running_jobs) < max_jobs
                     and self.next_generation_to_submit < target_gens
                 ):

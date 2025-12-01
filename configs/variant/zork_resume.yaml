@@ -1,0 +1,17 @@
+# Resume Zork evolution from existing database
+
+variant_suffix: "_queue_aware"  # Keep same suffix to use same results directory
+
+verbose: true
+
+# Override to use existing database (path relative to results_dir)
+# Use 1 island since island 0 has all the evolved programs
+db_config:
+  db_path: evolution_db.sqlite
+  num_islands: 1  # All evolved programs are on island 0
+
+# Override evolution config to continue indefinitely
+evo_config:
+  num_generations: 1000000  # Run essentially forever until manually stopped
+  max_parallel_jobs: 8
+  results_dir: results/shinka_zork/2025.11.21205215_queue_aware

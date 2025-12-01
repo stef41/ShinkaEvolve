@@ -19,9 +19,13 @@ load_dotenv(dotenv_path=env_path, override=True)
 
 def get_client_llm(model_name: str, structured_output: bool = False) -> Tuple[Any, str]:
     """Get the client and model for the given model name.
+    
+    Supports custom base URLs via model_name@base_url syntax.
+    E.g., "openai/gpt-oss-120b@http://localhost:8000/v1"
 
     Args:
         model_name (str): The name of the model to get the client.
+        structured_output (bool): Whether to use structured output mode.
 
     Raises:
         ValueError: If the model is not supported.
@@ -29,6 +33,11 @@ def get_client_llm(model_name: str, structured_output: bool = False) -> Tuple[An
     Returns:
         The client and model for the given model name.
     """
+    # Parse custom base URL if provided
+    base_url = None
+    if "@" in model_name:
+        model_name, base_url = model_name.split("@", 1)
+    
     # print(f"Getting client for model {model_name}")
     if model_name in CLAUDE_MODELS.keys():
         client = anthropic.Anthropic()
@@ -47,8 +56,15 @@ def get_client_llm(model_name: str, structured_output: bool = False) -> Tuple[An
             client = instructor.from_anthropic(
                 client, mode=instructor.mode.Mode.ANTHROPIC_JSON
             )
-    elif model_name in OPENAI_MODELS.keys():
-        client = openai.OpenAI()
+    elif model_name in OPENAI_MODELS.keys() or base_url:
+        # Support custom base URLs for OpenAI-compatible endpoints
+        client_kwargs = {}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+            # Use OPENAI_API_KEY from environment if custom URL provided
+            api_key = os.getenv("OPENAI_API_KEY", os.getenv("EVALUATOR_API_KEY", "sk-placeholder"))
+            client_kwargs["api_key"] = api_key
+        client = openai.OpenAI(**client_kwargs)
         if structured_output:
             client = instructor.from_openai(client, mode=instructor.Mode.TOOLS_STRICT)
     elif model_name.startswith("azure-"):

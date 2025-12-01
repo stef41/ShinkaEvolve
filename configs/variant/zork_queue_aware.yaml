@@ -1,0 +1,10 @@
+# Zork evolution variant with queue-aware parallel submission
+
+variant_suffix: "_queue_aware"
+
+verbose: true
+
+# Override evolution config for continuous improvement
+evo_config:
+  num_generations: 10000  # Run many generations
+  max_parallel_jobs: 8   # Run up to 8 evaluations in parallel when queue allows

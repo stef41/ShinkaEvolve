@@ -93,6 +93,13 @@ def submit(log_dir: str, cmd: list[str], verbose: bool = False):
     env = os.environ.copy()
     env["PYTHONUNBUFFERED"] = "1"  # Force Python to be unbuffered
     env["PYTHONIOENCODING"] = "utf-8"  # Ensure proper encoding
+    
+    # Add current directory to PYTHONPATH so shinka module can be imported
+    current_dir = Path.cwd()
+    if "PYTHONPATH" in env:
+        env["PYTHONPATH"] = f"{current_dir}:{env['PYTHONPATH']}"
+    else:
+        env["PYTHONPATH"] = str(current_dir)
 
     # Use PIPE to capture output and redirect to files in real-time
     process = subprocess.Popen(

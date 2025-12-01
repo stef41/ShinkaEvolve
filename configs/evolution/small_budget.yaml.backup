@@ -4,11 +4,13 @@ evo_config:
     - "full"
   patch_type_probs:
     - 1.0
-  num_generations: 100000  # Infinite loop (very high number)
-  max_parallel_jobs: 8
+  num_generations: 20
+  max_parallel_jobs: 1
   max_patch_attempts: 10
   llm_models:
     - "openai/gpt-oss-120b"
   llm_dynamic_selection: null
   embedding_model: null
   results_dir: ${output_dir}
+
+

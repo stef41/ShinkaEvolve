@@ -122,6 +122,10 @@ OPENAI_MODELS = {
         "input_price": 1.25 / M,
         "output_price": 10.0 / M,
     },
+    "openai/gpt-oss-120b": {
+        "input_price": 0.0 / M,  # Custom model via voltage-park
+        "output_price": 0.0 / M,
+    },
 }
 
 

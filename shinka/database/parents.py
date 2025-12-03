@@ -84,6 +84,31 @@ class ParentSamplingStrategy(ABC):
         self.get_program = get_program_func
         self.best_program_id = best_program_id
         self.island_idx = island_idx
+        
+        # Task filtering for shared databases
+        self.task_name = getattr(config, 'task_name', None)
+
+    def _get_task_filter_sql(self, table_alias: str = "p") -> str:
+        """
+        Get SQL condition to filter by task_name.
+        
+        Returns empty string if no task filtering needed (SQLite or no task configured).
+        For PostgreSQL with task_name, returns: AND p.metadata->>'task_name' = 'task'
+        """
+        if not self.task_name:
+            return ""
+        
+        # Check if using PostgreSQL (has JSONB operator)
+        # SQLite doesn't support ->>' so we skip task filtering there
+        try:
+            # Simple heuristic: check if cursor supports PostgreSQL-style queries
+            backend_type = getattr(self.config, 'backend', 'sqlite')
+            if backend_type in ('postgres', 'postgresql'):
+                return f" AND {table_alias}.metadata->>'task_name' = '{self.task_name}'"
+        except Exception:
+            pass
+        
+        return ""
 
     @abstractmethod
     def sample_parent(self) -> Any:
@@ -107,18 +132,24 @@ class PowerLawSamplingStrategy(ParentSamplingStrategy):
             raise ConnectionError("DB/config issue for parent sampling.")
 
         pid: Optional[str] = None
+        task_filter = self._get_task_filter_sql("p")
+        
         # Try elite archive for exploitation (archive only contains correct programs)
         if hasattr(self.config, "exploitation_ratio"):
             if np.random.random() < self.config.exploitation_ratio:
                 if self.island_idx is not None:
                     self.cursor.execute(
-                        """SELECT a.program_id FROM archive a 
+                        f"""SELECT a.program_id FROM archive a 
                            JOIN programs p ON a.program_id = p.id 
-                           WHERE p.island_idx = ?""",
+                           WHERE p.island_idx = ?{task_filter}""",
                         (self.island_idx,),
                     )
                 else:
-                    self.cursor.execute("SELECT program_id FROM archive")
+                    self.cursor.execute(
+                        f"""SELECT a.program_id FROM archive a
+                           JOIN programs p ON a.program_id = p.id
+                           WHERE 1=1{task_filter}"""
+                    )
                 archived_rows = self.cursor.fetchall()
                 if archived_rows:
                     archived_program_ids = [row["program_id"] for row in archived_rows]
@@ -156,15 +187,15 @@ class PowerLawSamplingStrategy(ParentSamplingStrategy):
         if not pid:
             if self.island_idx is not None:
                 self.cursor.execute(
-                    """SELECT p.id FROM programs p
-                       WHERE p.correct = 1 AND p.island_idx = ?
+                    f"""SELECT p.id FROM programs p
+                       WHERE p.correct = 1 AND p.island_idx = ?{task_filter}
                        ORDER BY p.combined_score DESC""",
                     (self.island_idx,),
                 )
             else:
                 self.cursor.execute(
-                    """SELECT p.id FROM programs p
-                       WHERE p.correct = 1
+                    f"""SELECT p.id FROM programs p
+                       WHERE p.correct = 1{task_filter}
                        ORDER BY p.combined_score DESC"""
                 )
             correct_rows = self.cursor.fetchall()
@@ -199,13 +230,15 @@ class PowerLawSamplingStrategy(ParentSamplingStrategy):
             and self.config.num_islands > 0
             and self.island_idx is None  # Only do this if no island constraint
         ):
-            self.cursor.execute("SELECT DISTINCT island_idx FROM programs")
+            self.cursor.execute(
+                f"SELECT DISTINCT island_idx FROM programs WHERE 1=1{task_filter}"
+            )
             island_indices = [r["island_idx"] for r in self.cursor.fetchall()]
             if island_indices:
                 idx = np.random.choice(island_indices)
                 self.cursor.execute(
-                    """SELECT p.id FROM programs p
-                       WHERE p.island_idx = ? AND p.correct = 1
+                    f"""SELECT p.id FROM programs p
+                       WHERE p.island_idx = ? AND p.correct = 1{task_filter}
                        ORDER BY RANDOM() LIMIT 1""",
                     (idx,),
                 )
@@ -244,14 +277,14 @@ class PowerLawSamplingStrategy(ParentSamplingStrategy):
         if not pid:
             if self.island_idx is not None:
                 self.cursor.execute(
-                    """SELECT id FROM programs 
-                       WHERE correct = 1 AND island_idx = ? 
+                    f"""SELECT id FROM programs 
+                       WHERE correct = 1 AND island_idx = ?{task_filter}
                        ORDER BY RANDOM() LIMIT 1""",
                     (self.island_idx,),
                 )
             else:
                 self.cursor.execute(
-                    """SELECT id FROM programs WHERE correct = 1 
+                    f"""SELECT id FROM programs WHERE correct = 1{task_filter}
                        ORDER BY RANDOM() LIMIT 1"""
                 )
             row = self.cursor.fetchone()
@@ -275,24 +308,26 @@ class WeightedSamplingStrategy(ParentSamplingStrategy):
     """Weighted sampling strategy for parent selection."""
 
     def sample_parent(self) -> Any:
+        task_filter = self._get_task_filter_sql("p")
+        
         # Fetch all programs from the archive.
         if self.island_idx is not None:
             self.cursor.execute(
-                """
+                f"""
                 SELECT p.*
                 FROM programs p
                 JOIN archive a ON p.id = a.program_id
-                WHERE p.correct = 1 AND p.island_idx = ?
+                WHERE p.correct = 1 AND p.island_idx = ?{task_filter}
                 """,
                 (self.island_idx,),
             )
         else:
             self.cursor.execute(
-                """
+                f"""
                 SELECT p.*
                 FROM programs p
                 JOIN archive a ON p.id = a.program_id
-                WHERE p.correct = 1
+                WHERE p.correct = 1{task_filter}
                 """
             )
         archive_rows = self.cursor.fetchall()
@@ -309,14 +344,14 @@ class WeightedSamplingStrategy(ParentSamplingStrategy):
             # Fallback to random correct program in island
             if self.island_idx is not None:
                 self.cursor.execute(
-                    """SELECT id FROM programs 
-                       WHERE correct = 1 AND island_idx = ? 
+                    f"""SELECT id FROM programs 
+                       WHERE correct = 1 AND island_idx = ?{task_filter}
                        ORDER BY RANDOM() LIMIT 1""",
                     (self.island_idx,),
                 )
             else:
                 self.cursor.execute(
-                    """SELECT id FROM programs WHERE correct = 1 
+                    f"""SELECT id FROM programs WHERE correct = 1{task_filter}
                        ORDER BY RANDOM() LIMIT 1"""
                 )
             row = self.cursor.fetchone()
@@ -550,18 +585,20 @@ class BestOfNSamplingStrategy(ParentSamplingStrategy):
     """Best-of-N sampling strategy that always returns the initial program as parent."""
 
     def sample_parent(self) -> Any:
+        task_filter = self._get_task_filter_sql("programs")
+        
         # Find the initial program (generation 0) in the specified island or globally
         if self.island_idx is not None:
             self.cursor.execute(
-                """SELECT id FROM programs
-                   WHERE generation = 0 AND island_idx = ? AND correct = 1
+                f"""SELECT id FROM programs
+                   WHERE generation = 0 AND island_idx = ? AND correct = 1{task_filter}
                    ORDER BY id LIMIT 1""",
                 (self.island_idx,),
             )
         else:
             self.cursor.execute(
-                """SELECT id FROM programs
-                   WHERE generation = 0 AND correct = 1
+                f"""SELECT id FROM programs
+                   WHERE generation = 0 AND correct = 1{task_filter}
                    ORDER BY id LIMIT 1"""
             )
 
@@ -584,15 +621,15 @@ class BestOfNSamplingStrategy(ParentSamplingStrategy):
         )
         if self.island_idx is not None:
             self.cursor.execute(
-                """SELECT id FROM programs
-                   WHERE correct = 1 AND island_idx = ?
+                f"""SELECT id FROM programs
+                   WHERE correct = 1 AND island_idx = ?{task_filter}
                    ORDER BY generation ASC, id ASC LIMIT 1""",
                 (self.island_idx,),
             )
         else:
             self.cursor.execute(
-                """SELECT id FROM programs
-                   WHERE correct = 1
+                f"""SELECT id FROM programs
+                   WHERE correct = 1{task_filter}
                    ORDER BY generation ASC, id ASC LIMIT 1"""
             )
 
@@ -689,6 +726,12 @@ class CombinedParentSelector:
 
         # Fallback to best program if sampling failed
         if not parent:
+            # Get task filter for fallback queries
+            task_name = getattr(self.config, 'task_name', None)
+            task_filter = ""
+            if task_name and getattr(self.config, 'backend', 'sqlite') in ('postgres', 'postgresql'):
+                task_filter = f" AND metadata->>'task_name' = '{task_name}'"
+            
             # Try best program first
             if self.best_program_id:
                 parent = self.get_program(self.best_program_id)
@@ -702,14 +745,15 @@ class CombinedParentSelector:
             # Final fallback: random correct program
             if island_idx is not None:
                 self.cursor.execute(
-                    """SELECT id FROM programs 
-                       WHERE correct = 1 AND island_idx = ?
+                    f"""SELECT id FROM programs 
+                       WHERE correct = 1 AND island_idx = ?{task_filter}
                        ORDER BY RANDOM() LIMIT 1""",
                     (island_idx,),
                 )
             else:
                 self.cursor.execute(
-                    """SELECT id FROM programs 
+                    f"""SELECT id FROM programs 
+                       WHERE correct = 1{task_filter}
                        ORDER BY RANDOM() LIMIT 1"""
                 )
             row = self.cursor.fetchone()

@@ -836,6 +836,20 @@ class EvolutionRunner:
         private_metrics = metrics_val.get("private", {})
         text_feedback = metrics_val.get("text_feedback", "")
 
+        # Extract raw metrics for dynamic objective function support
+        # Use game_score (average_ntps from MIND) as primary performance metric
+        raw_ppl_score = metrics_val.get("game_score", metrics_val.get("ppl_score", combined_score))
+        # Prefer compressed_code_size from MIND (more meaningful), fallback to code_size
+        raw_code_size = metrics_val.get("compressed_code_size", 
+                        metrics_val.get("code_size", len(evaluated_code) if evaluated_code else 0))
+        raw_exec_time = metrics_val.get("execution_time", metrics_val.get("exec_time", 0.0))
+        
+        # Get the current objective function used for scoring
+        objective_function_used = self.db.get_objective_function() or "ppl_score"
+        
+        # Get preprompt from metadata if available
+        preprompt_used = (job.meta_patch_data or {}).get("preprompt")
+
         # Add the program to the database
         db_program = Program(
             id=str(uuid.uuid4()),
@@ -849,6 +863,11 @@ class EvolutionRunner:
             embedding=code_embedding,
             correct=correct_val,
             combined_score=combined_score,
+            raw_ppl_score=raw_ppl_score,
+            raw_code_size=raw_code_size,
+            raw_exec_time=raw_exec_time,
+            objective_function_used=objective_function_used,
+            preprompt=preprompt_used,
             public_metrics=public_metrics,
             private_metrics=private_metrics,
             text_feedback=text_feedback,
@@ -989,12 +1008,17 @@ class EvolutionRunner:
             )
         # Get current meta recommendations
         meta_recs, _, _ = self.meta_summarizer.get_current()
+        
+        # Get current preprompt from database
+        current_preprompt = self.db.get_preprompt()
+        
         # Construct edit / code change message
         patch_sys, patch_msg, patch_type = self.prompt_sampler.sample(
             parent=parent_program,
             archive_inspirations=archive_programs,
             top_k_inspirations=top_k_programs,
             meta_recommendations=meta_recs,
+            preprompt=current_preprompt,
         )
 
         if patch_type in ["full", "cross"]:
@@ -1136,6 +1160,7 @@ class EvolutionRunner:
             "novelty_attempt": novelty_attempt,
             "resample_attempt": resample_attempt,
             "patch_attempt": patch_attempt + 1,
+            "preprompt": current_preprompt,
             **llm_kwargs,
             "llm_result": response.to_dict() if response else None,
             "diff_summary": diff_summary,

@@ -68,11 +68,18 @@ class PromptSampler:
         archive_inspirations: List[Program],
         top_k_inspirations: List[Program],
         meta_recommendations: Optional[str] = None,
+        preprompt: Optional[str] = None,
     ) -> Tuple[str, str, str]:
-        if self.task_sys_msg is None:
-            sys_msg = BASE_SYSTEM_MSG
+        # Start with preprompt if provided
+        if preprompt:
+            sys_msg = preprompt.strip() + "\n\n"
         else:
-            sys_msg = self.task_sys_msg
+            sys_msg = ""
+        
+        if self.task_sys_msg is None:
+            sys_msg += BASE_SYSTEM_MSG
+        else:
+            sys_msg += self.task_sys_msg
 
         # Sample coding type
         # Filter out crossover if no inspirations

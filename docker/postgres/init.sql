@@ -28,7 +28,13 @@ CREATE TABLE IF NOT EXISTS programs (
     children_count INTEGER NOT NULL DEFAULT 0,
     metadata JSONB,
     migration_history JSONB,
-    island_idx INTEGER
+    island_idx INTEGER,
+    -- Raw metrics for dynamic objective function support
+    raw_ppl_score DOUBLE PRECISION,      -- Primary performance score (e.g., game_score)
+    raw_code_size INTEGER,               -- Code size in bytes
+    raw_exec_time DOUBLE PRECISION,      -- Execution time in seconds
+    objective_function_used TEXT,        -- Formula used to calculate combined_score
+    preprompt TEXT                       -- Preprompt used during LLM generation for this program
 );
 
 -- Create the archive table

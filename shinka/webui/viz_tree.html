@@ -119,19 +119,22 @@
         
         #tabs {
             display: flex;
+            flex-wrap: wrap;
             border-bottom: 1px solid #ddd;
             margin-bottom: 15px;
+            gap: 2px;
         }
         
         .tab {
-            padding: 10px 15px;
+            padding: 8px 12px;
             cursor: pointer;
             border: 1px solid transparent;
             border-bottom: none;
-            margin-right: 5px;
             background-color: #f1f1f1;
             border-top-left-radius: 5px;
             border-top-right-radius: 5px;
+            font-size: 13px;
+            white-space: nowrap;
         }
         
         .tab.active {
@@ -139,7 +142,7 @@
             border-color: #ddd;
             border-bottom-color: #fff;
             margin-bottom: -1px;
-            padding-bottom: 11px;
+            padding-bottom: 9px;
             font-weight: bold;
         }
 
@@ -259,6 +262,11 @@
             align-items: center;
             flex-wrap: wrap;
             gap: 8px;
+            row-gap: 6px;
+        }
+        
+        .file-selector label {
+            white-space: nowrap;
         }
         
         select {
@@ -266,13 +274,13 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             background-color: white;
-            min-width: 120px;
+            min-width: 100px;
         }
         
         #task-select, #result-select {
-            flex: 1;
+            flex: 1 1 120px;
             max-width: 200px;
-            min-width: 150px;
+            min-width: 100px;
         }
         
         #refresh-files {
@@ -692,21 +700,23 @@
 
         #left-tabs {
             display: flex;
+            flex-wrap: wrap;
             border-bottom: 1px solid #ddd;
             margin-top: 10px;
             flex-shrink: 0;
+            gap: 2px;
         }
 
         .left-tab {
-            padding: 8px 12px;
+            padding: 6px 10px;
             cursor: pointer;
             border: 1px solid transparent;
             border-bottom: none;
-            margin-right: 4px;
             background-color: #f1f1f1;
             border-top-left-radius: 4px;
             border-top-right-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
+            white-space: nowrap;
         }
 
         .left-tab.active {
@@ -1146,6 +1156,105 @@
             box-shadow: 0 0 8px rgba(229, 130, 38, 0.4);
         }
 
+        /* Cosmograph container styles */
+        #cosmograph-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background-color: #0a0a0f;
+        }
+        
+        #cosmograph-container canvas {
+            display: block;
+        }
+        
+        .cosmograph-tooltip {
+            position: absolute;
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 13px;
+            background: rgba(20, 20, 30, 0.95);
+            color: #fff;
+            border-radius: 6px;
+            pointer-events: none;
+            line-height: 1.5;
+            z-index: 1000;
+            max-width: 300px;
+            word-wrap: break-word;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .cosmograph-tooltip strong {
+            color: #58a6ff;
+        }
+        
+        .cosmograph-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .cosmograph-controls button {
+            padding: 6px 12px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        
+        .cosmograph-controls button:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .cosmograph-controls button.active {
+            background: rgba(88, 166, 255, 0.3);
+            border-color: #58a6ff;
+        }
+
+        /* Responsive styles */
+        @media (max-width: 1400px) {
+            .left-tab {
+                padding: 5px 8px;
+                font-size: 12px;
+            }
+            .tab {
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            .panel-title {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 1000px) {
+            .left-tab {
+                padding: 4px 6px;
+                font-size: 11px;
+            }
+            .tab {
+                padding: 5px 8px;
+                font-size: 11px;
+            }
+            #task-select, #result-select {
+                max-width: 150px;
+                min-width: 80px;
+            }
+            .file-selector {
+                gap: 5px;
+            }
+            .file-selector label {
+                font-size: 12px;
+            }
+        }
+
 
     </style>
 </head>
@@ -1182,11 +1291,19 @@
                 data-tab="islands-view">Islands</div>
                 <div class="left-tab" data-tab="model-posteriors-view">LLM Posterior</div>
                 <div class="left-tab" data-tab="best-path-view">Path → Best</div>
-
+                <div class="left-tab" data-tab="focus-settings">🎯 Focus</div>
+                <div class="left-tab" data-tab="preprompt-settings">📝 Preprompt</div>
+                <div class="left-tab" data-tab="objective-settings">⚙️ Objective</div>
             </div>
             <div id="left-tab-content" style="flex-grow: 1; overflow: hidden; position: relative; height: calc(100vh - 200px);">
                 <div id="tree-view" class="left-content-section active">
-                    <div id="tree" style="height: 100%;"></div>
+                    <div id="cosmograph-container">
+                        <div class="cosmograph-controls">
+                            <button id="cosmo-fit-view" title="Fit view to graph">🎯 Fit</button>
+                        </div>
+                        <!-- Cosmograph will render here -->
+                    </div>
+                    <div id="tree" style="height: 100%; display: none;"></div>
                 </div>
                 <div id="table-view" class="left-content-section">
                     <div style="padding: 10px; border-bottom: 1px solid #ddd; background-color: #f8f9fa;">
@@ -1308,37 +1425,196 @@
                         <div id="metrics-plots" style="display: flex; flex-direction: column; gap: 20px;"></div>
                     </div>
                 </div>
+                <div id="preprompt-settings" class="left-content-section">
+                    <div style="padding: 20px; overflow-y: auto; height: 100%; box-sizing: border-box;">
+                        <h3 style="margin-top: 0;">🎯 LLM Preprompt</h3>
+                        <p style="color: #666; margin-bottom: 15px;">
+                            Inject custom instructions into the LLM generation process.
+                            This preprompt will be added to the beginning of the system message for all future generations.
+                        </p>
+                        <div style="margin-bottom: 20px;">
+                            <label for="preprompt-input" style="display: block; font-weight: bold; margin-bottom: 5px;">
+                                Preprompt (injected before system message):
+                            </label>
+                            <textarea id="preprompt-input" 
+                                   style="width: 100%; height: 150px; padding: 10px; font-family: monospace; font-size: 13px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"
+                                   placeholder="e.g., Focus on optimizing for speed. Prefer simple solutions over complex ones."></textarea>
+                            <div style="margin-top: 5px; color: #888; font-size: 12px;">
+                                This text will be prepended to the system prompt used for code generation.
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                            <button id="apply-preprompt-btn" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                💾 Save Preprompt
+                            </button>
+                            <button id="clear-preprompt-btn" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                🗑️ Clear
+                            </button>
+                        </div>
+                        <div id="preprompt-status" style="padding: 10px; border-radius: 4px; display: none;"></div>
+                        <div style="margin-top: 20px;">
+                            <h4>Example Preprompts:</h4>
+                            <div style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px;">
+                                <div style="margin-bottom: 8px; cursor: pointer; padding: 5px; border-radius: 3px;" 
+                                     onclick="document.getElementById('preprompt-input').value = 'Focus on minimizing code size while maintaining correctness.'" 
+                                     title="Click to use"
+                                     onmouseover="this.style.backgroundColor='#e9ecef'" 
+                                     onmouseout="this.style.backgroundColor='transparent'">
+                                    <code>Focus on minimizing code size while maintaining correctness.</code>
+                                </div>
+                                <div style="margin-bottom: 8px; cursor: pointer; padding: 5px; border-radius: 3px;" 
+                                     onclick="document.getElementById('preprompt-input').value = 'Prioritize execution speed over code readability.'" 
+                                     title="Click to use"
+                                     onmouseover="this.style.backgroundColor='#e9ecef'" 
+                                     onmouseout="this.style.backgroundColor='transparent'">
+                                    <code>Prioritize execution speed over code readability.</code>
+                                </div>
+                                <div style="margin-bottom: 8px; cursor: pointer; padding: 5px; border-radius: 3px;" 
+                                     onclick="document.getElementById('preprompt-input').value = 'Use advanced algorithmic techniques like dynamic programming or memoization.'" 
+                                     title="Click to use"
+                                     onmouseover="this.style.backgroundColor='#e9ecef'" 
+                                     onmouseout="this.style.backgroundColor='transparent'">
+                                    <code>Use advanced algorithmic techniques like dynamic programming or memoization.</code>
+                                </div>
+                                <div style="margin-bottom: 8px; cursor: pointer; padding: 5px; border-radius: 3px;" 
+                                     onclick="document.getElementById('preprompt-input').value = 'Think step by step. Consider edge cases carefully.'" 
+                                     title="Click to use"
+                                     onmouseover="this.style.backgroundColor='#e9ecef'" 
+                                     onmouseout="this.style.backgroundColor='transparent'">
+                                    <code>Think step by step. Consider edge cases carefully.</code>
+                                </div>
+                                <div style="cursor: pointer; padding: 5px; border-radius: 3px;" 
+                                     onclick="document.getElementById('preprompt-input').value = 'Be creative and try unconventional approaches. Do not be afraid to completely rewrite the algorithm.'" 
+                                     title="Click to use"
+                                     onmouseover="this.style.backgroundColor='#e9ecef'" 
+                                     onmouseout="this.style.backgroundColor='transparent'">
+                                    <code>Be creative and try unconventional approaches. Do not be afraid to completely rewrite the algorithm.</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="focus-settings" class="left-content-section">
+                    <div style="padding: 20px; overflow-y: auto; height: 100%; box-sizing: border-box;">
+                        <h3 style="margin-top: 0;">🎯 Mutation Focus</h3>
+                        <p style="color: #666; margin-bottom: 15px;">
+                            Focus all future mutations on a specific subtree.
+                            <strong>Double-click</strong> a node in the tree graph to set it as the mutation root.
+                        </p>
+                        
+                        <div id="focus-node-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <div style="font-weight: bold; margin-bottom: 10px;">Current Focus:</div>
+                            <div id="focus-node-display" style="font-family: monospace; color: #666;">
+                                No focus set - mutations occur across all programs
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                            <button id="clear-focus-btn" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;" disabled>
+                                🗑️ Clear Focus
+                            </button>
+                            <button id="focus-best-btn" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                ⭐ Focus on Best
+                            </button>
+                        </div>
+                        
+                        <div id="focus-status" style="padding: 10px; border-radius: 4px; display: none;"></div>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 8px; border-left: 4px solid #007bff;">
+                            <h4 style="margin-top: 0; color: #0056b3;">How it works:</h4>
+                            <ul style="margin-bottom: 0; padding-left: 20px; color: #666;">
+                                <li>When a focus node is set, new mutations will only be created from programs that are descendants of that node</li>
+                                <li>This allows you to "explore" a promising branch more deeply</li>
+                                <li>Double-click any node in the Tree view to set it as focus</li>
+                                <li>Clear focus to return to global mutation selection</li>
+                            </ul>
+                        </div>
+                        
+                        <div id="focus-subtree-info" style="margin-top: 20px; display: none;">
+                            <h4>Subtree Statistics:</h4>
+                            <div id="focus-subtree-stats" style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="objective-settings" class="left-content-section">
+                    <div style="padding: 20px; overflow-y: auto; height: 100%; box-sizing: border-box;">
+                        <h3 style="margin-top: 0;">📊 Dynamic Objective Function</h3>
+                        <p style="color: #666; margin-bottom: 15px;">
+                            Change how programs are scored without restarting evolution.
+                            The score is recalculated for all programs when you apply changes.
+                        </p>
+                        <div style="margin-bottom: 20px;">
+                            <label for="objective-expression" style="display: block; font-weight: bold; margin-bottom: 5px;">
+                                Objective Function Expression:
+                            </label>
+                            <input type="text" id="objective-expression" 
+                                   style="width: 100%; padding: 10px; font-family: monospace; font-size: 14px; border: 1px solid #ddd; border-radius: 4px;"
+                                   placeholder="ppl_score - 0.01 * code_size" />
+                            <div style="margin-top: 5px; color: #888; font-size: 12px;">
+                                Available variables: <code>ppl_score</code> (game/performance score), 
+                                <code>code_size</code> (bytes), <code>exec_time</code> (seconds)
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                            <button id="apply-objective-btn" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                Apply & Recalculate
+                            </button>
+                            <button id="reset-objective-btn" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                Reset to Default
+                            </button>
+                        </div>
+                        <div id="objective-status" style="padding: 10px; border-radius: 4px; display: none;"></div>
+                        <div style="margin-top: 20px;">
+                            <h4>Examples:</h4>
+                            <div style="font-family: monospace; background: #f8f9fa; padding: 10px; border-radius: 4px;">
+                                <div style="margin-bottom: 8px; cursor: pointer;" onclick="document.getElementById('objective-expression').value = 'ppl_score'" title="Click to use">
+                                    <code>ppl_score</code> - Use performance score only
+                                </div>
+                                <div style="margin-bottom: 8px; cursor: pointer;" onclick="document.getElementById('objective-expression').value = 'ppl_score - 0.01 * code_size'" title="Click to use">
+                                    <code>ppl_score - 0.01 * code_size</code> - Penalize longer code
+                                </div>
+                                <div style="margin-bottom: 8px; cursor: pointer;" onclick="document.getElementById('objective-expression').value = 'ppl_score / (1 + 0.1 * exec_time)'" title="Click to use">
+                                    <code>ppl_score / (1 + 0.1 * exec_time)</code> - Penalize slower execution
+                                </div>
+                                <div style="cursor: pointer;" onclick="document.getElementById('objective-expression').value = 'ppl_score * (1000 / (code_size + 100))'" title="Click to use">
+                                    <code>ppl_score * (1000 / (code_size + 100))</code> - Strong size penalty
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div id="tree-legend" style="position: absolute; top: 175px; right: 20px; padding: 2px; border: 2px solid #ccc; border-radius: 5px; background-color: rgba(248, 249, 250, 0.9); font-size: 12px; display: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15); z-index: 10;">
-                <div style="display: flex; gap: 16px; align-items: flex-start;">
-                    <div style="display: flex; flex-direction: column; gap: 8px;">
-                        <h5 style="margin: 0 0 4px 0; font-size: 13px;">Nodes</h5>
+            <div id="tree-legend" style="position: absolute; bottom: 20px; right: 20px; padding: 8px; border: 1px solid #ccc; border-radius: 5px; background-color: rgba(248, 249, 250, 0.95); font-size: 11px; display: none; box-shadow: 0 2px 6px rgba(0,0,0,0.15); z-index: 10; max-width: 280px;">
+                <div style="display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <h5 style="margin: 0 0 2px 0; font-size: 11px;">Nodes</h5>
                         <div style="display: flex; align-items: center;">
-                            <svg width="16" height="16" style="margin-right: 5px;">
-                                <circle cx="8" cy="8" r="6" fill="#ffd700" stroke="#ff8c00" stroke-width="3"></circle>
+                            <svg width="14" height="14" style="margin-right: 4px;">
+                                <circle cx="7" cy="7" r="5" fill="#ffd700" stroke="#ff8c00" stroke-width="2"></circle>
                             </svg>
                             <span>Best</span>
                         </div>
                         <div style="display: flex; align-items: center;">
-                            <svg width="16" height="16" style="margin-right: 5px;">
-                                <circle cx="8" cy="8" r="6" fill="#e74c3c" stroke="#c0392b" stroke-width="2"></circle>
+                            <svg width="14" height="14" style="margin-right: 4px;">
+                                <circle cx="7" cy="7" r="5" fill="#e74c3c" stroke="#c0392b" stroke-width="2"></circle>
                             </svg>
                             <span>Error</span>
                         </div>
                     </div>
-                    <div id="shape-legend" style="display: flex; flex-direction: column; gap: 8px;">
-                        <h5 style="margin: 0 0 4px 0; font-size: 13px;">Patches</h5>
+                    <div id="shape-legend" style="display: flex; flex-direction: column; gap: 4px;">
+                        <h5 style="margin: 0 0 2px 0; font-size: 11px;">Patches</h5>
                     </div>
                     <div>
-                        <h5 style="margin: 0 0 4px 0; font-size: 13px;">Performance</h5>
-                        <div id="score-heatbar" style="width: 100px; height: 15px; position: relative; border-radius: 3px; overflow: hidden;"></div>
-                        <div style="display: flex; justify-content: space-between; font-size: 10px; margin-top: 2px;">
+                        <h5 style="margin: 0 0 2px 0; font-size: 11px;">Performance</h5>
+                        <div id="score-heatbar" style="width: 80px; height: 12px; position: relative; border-radius: 3px; overflow: hidden;"></div>
+                        <div style="display: flex; justify-content: space-between; font-size: 9px; margin-top: 2px;">
                             <span id="min-score">Min</span>
                             <span id="max-score">Max</span>
                         </div>
-                        <div id="islands-legend" style="margin-top: 10px;">
-                            <h5 style="margin: 0 0 4px 0; font-size: 13px;">Islands</h5>
-                            <div id="islands-legend-items" style="display: flex; flex-direction: column; gap: 4px;"></div>
+                        <div id="islands-legend" style="margin-top: 6px;">
+                            <h5 style="margin: 0 0 2px 0; font-size: 11px;">Islands</h5>
+                            <div id="islands-legend-items" style="display: flex; flex-direction: column; gap: 2px;"></div>
                         </div>
                     </div>
                 </div>
@@ -1441,6 +1717,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/python.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Cosmograph GPU-accelerated graph visualization -->
+    <script src="https://unpkg.com/@cosmos.gl/graph@2.6.2/dist/index.min.js"></script>
 
     <!-- Add our script after all external dependencies -->
     <script>
@@ -1531,7 +1809,24 @@
                 const refreshButton = document.getElementById('refresh-files');
                 refreshButton.addEventListener('click', function() {
                     console.log("[DEBUG] Refresh button clicked");
-                    findDatabases(true); // Force refresh of DB list
+                    // If a database is currently loaded, do a soft refresh to preserve Cosmograph state
+                    if (window.currentDbPath) {
+                        console.log("[DEBUG] Soft refreshing current database:", window.currentDbPath);
+                        const scanStatus = document.getElementById("scan-status");
+                        scanStatus.textContent = "Refreshing data...";
+                        
+                        window.isAutoRefreshing = true; // This flag makes processData use updateCosmograph
+                        loadDatabaseSilent(window.currentDbPath).then(() => {
+                            window.isAutoRefreshing = false;
+                            console.log("[DEBUG] Soft refresh complete");
+                        }).catch((err) => {
+                            window.isAutoRefreshing = false;
+                            console.error("[DEBUG] Soft refresh error:", err);
+                        });
+                    } else {
+                        // No database loaded, refresh the database list
+                        findDatabases(true);
+                    }
                 });
                 
                 // Initialize the reload data button handler
@@ -1546,13 +1841,15 @@
                         const scanStatus = document.getElementById("scan-status");
                         scanStatus.textContent = "Reloading data...";
                         
-                        // Reload the current data file
-                        loadDatabase(window.currentDbPath);
-                        
-                        // Remove loading state after a short delay
-                        setTimeout(() => {
+                        // Use soft reload to preserve Cosmograph state (zoom/position)
+                        window.isAutoRefreshing = true; // This flag makes processData use updateCosmograph
+                        loadDatabaseSilent(window.currentDbPath).then(() => {
+                            window.isAutoRefreshing = false;
                             reloadButton.classList.remove('loading');
-                        }, 1000);
+                        }).catch(() => {
+                            window.isAutoRefreshing = false;
+                            reloadButton.classList.remove('loading');
+                        });
                     } else {
                         console.log("[DEBUG] No file currently loaded to reload");
                         alert("Please select a database file first");
@@ -1693,10 +1990,20 @@
                         if (tabId === 'tree-view') {
                             if (window.treeData) {
                                 legend.style.display = 'block';
-                                renderGraph(window.treeData);
+                                // Only re-render if cosmograph doesn't exist yet
+                                // Switching tabs should NOT reset the graph view
+                                if (!cosmographInstance) {
+                                    renderCosmograph(window.treeData);
+                                }
                             }
                         } else {
                             legend.style.display = 'none';
+                        }
+                        
+                        // Settings tabs (preprompt, objective, focus) don't need any special handling
+                        if (tabId === 'preprompt-settings' || tabId === 'objective-settings' || tabId === 'focus-settings') {
+                            // These are settings tabs, no visualization to update
+                            return;
                         }
                         
                         // Initialize embeddings view when tab is clicked
@@ -1888,7 +2195,417 @@
                     showMetaSection(this.getAttribute('data-section'));
                 });
             });
+            
+            // Initialize objective function controls
+            initializeObjectiveFunctionControls();
+            
+            // Initialize preprompt controls
+            initializePrepromptControls();
+            
+            // Initialize focus controls
+            initializeFocusControls();
         }
+
+        // ========== Objective Function Controls ==========
+        function initializeObjectiveFunctionControls() {
+            const applyBtn = document.getElementById('apply-objective-btn');
+            const resetBtn = document.getElementById('reset-objective-btn');
+            const expressionInput = document.getElementById('objective-expression');
+            const statusDiv = document.getElementById('objective-status');
+            
+            if (!applyBtn || !expressionInput) return;
+            
+            // Load current objective function when database is loaded
+            window.loadObjectiveFunction = async function() {
+                try {
+                    const response = await fetch(`/api/objective_function?run_id=${encodeURIComponent(window.currentDbPath || '')}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        expressionInput.value = data.expression || 'ppl_score';
+                    }
+                } catch (error) {
+                    console.error('Failed to load objective function:', error);
+                }
+            };
+            
+            applyBtn.addEventListener('click', async function() {
+                const expression = expressionInput.value.trim();
+                if (!expression) {
+                    showObjectiveStatus('Please enter an expression', 'error');
+                    return;
+                }
+                
+                applyBtn.disabled = true;
+                applyBtn.textContent = 'Applying...';
+                
+                try {
+                    const response = await fetch('/api/objective_function', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ expression: expression })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        showObjectiveStatus(
+                            `✅ Updated ${result.programs_updated} programs with: ${expression}`,
+                            'success'
+                        );
+                        // Reload the current database to reflect new scores
+                        if (window.currentDbPath) {
+                            setTimeout(() => loadDatabase(window.currentDbPath), 500);
+                        }
+                    } else {
+                        showObjectiveStatus(`❌ ${result.error || 'Failed to update'}`, 'error');
+                    }
+                } catch (error) {
+                    showObjectiveStatus(`❌ Error: ${error.message}`, 'error');
+                } finally {
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = 'Apply & Recalculate';
+                }
+            });
+            
+            resetBtn.addEventListener('click', function() {
+                expressionInput.value = 'ppl_score';
+                showObjectiveStatus('Reset to default. Click "Apply" to save.', 'info');
+            });
+        }
+        
+        function showObjectiveStatus(message, type) {
+            const statusDiv = document.getElementById('objective-status');
+            if (!statusDiv) return;
+            
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = message;
+            
+            const colors = {
+                success: { bg: '#d4edda', text: '#155724' },
+                error: { bg: '#f8d7da', text: '#721c24' },
+                info: { bg: '#cce5ff', text: '#004085' }
+            };
+            const color = colors[type] || colors.info;
+            statusDiv.style.backgroundColor = color.bg;
+            statusDiv.style.color = color.text;
+        }
+        // ========== End Objective Function Controls ==========
+
+        // ========== Preprompt Controls ==========
+        function initializePrepromptControls() {
+            const applyBtn = document.getElementById('apply-preprompt-btn');
+            const clearBtn = document.getElementById('clear-preprompt-btn');
+            const prepromptInput = document.getElementById('preprompt-input');
+            const statusDiv = document.getElementById('preprompt-status');
+            
+            if (!applyBtn || !prepromptInput) return;
+            
+            // Load current preprompt when database is loaded
+            window.loadPreprompt = async function() {
+                try {
+                    const response = await fetch(`/api/preprompt?run_id=${encodeURIComponent(window.currentDbPath || '')}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        prepromptInput.value = data.preprompt || '';
+                    }
+                } catch (error) {
+                    console.error('Failed to load preprompt:', error);
+                }
+            };
+            
+            applyBtn.addEventListener('click', async function() {
+                const preprompt = prepromptInput.value.trim();
+                
+                applyBtn.disabled = true;
+                applyBtn.textContent = 'Saving...';
+                
+                try {
+                    const response = await fetch('/api/preprompt', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ preprompt: preprompt })
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (response.ok && result.success) {
+                        showPrepromptStatus(
+                            `✅ Preprompt saved! It will be used for all future generations.`,
+                            'success'
+                        );
+                    } else {
+                        showPrepromptStatus(`❌ ${result.error || 'Failed to save'}`, 'error');
+                    }
+                } catch (error) {
+                    showPrepromptStatus(`❌ Error: ${error.message}`, 'error');
+                } finally {
+                    applyBtn.disabled = false;
+                    applyBtn.textContent = '💾 Save Preprompt';
+                }
+            });
+            
+            clearBtn.addEventListener('click', function() {
+                prepromptInput.value = '';
+                showPrepromptStatus('Preprompt cleared. Click "Save" to apply.', 'info');
+            });
+        }
+        
+        function showPrepromptStatus(message, type) {
+            const statusDiv = document.getElementById('preprompt-status');
+            if (!statusDiv) return;
+            
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = message;
+            
+            const colors = {
+                success: { bg: '#d4edda', text: '#155724' },
+                error: { bg: '#f8d7da', text: '#721c24' },
+                info: { bg: '#cce5ff', text: '#004085' }
+            };
+            const color = colors[type] || colors.info;
+            statusDiv.style.backgroundColor = color.bg;
+            statusDiv.style.color = color.text;
+        }
+        // ========== End Preprompt Controls ==========
+
+        // ========== Focus Controls ==========
+        // Global variable to track the current focus node
+        window.currentFocusNodeId = null;
+        
+        function initializeFocusControls() {
+            const clearBtn = document.getElementById('clear-focus-btn');
+            const focusBestBtn = document.getElementById('focus-best-btn');
+            const statusDiv = document.getElementById('focus-status');
+            
+            if (!clearBtn) return;
+            
+            // Load current focus node when database is loaded
+            window.loadFocusNode = async function() {
+                try {
+                    const response = await fetch(`/api/focus_node?run_id=${encodeURIComponent(window.currentDbPath || '')}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        window.currentFocusNodeId = data.focus_node_id || null;
+                        updateFocusDisplay(data.node_info);
+                        
+                        // Apply highlighting if there's a focus node and Cosmograph is ready
+                        if (window.currentFocusNodeId && cosmographInstance && cosmographNodeData) {
+                            highlightFocusedSubtree(window.currentFocusNodeId);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load focus node:', error);
+                }
+            };
+            
+            clearBtn.addEventListener('click', async function() {
+                await setFocusNode(null);
+            });
+            
+            focusBestBtn.addEventListener('click', async function() {
+                if (window.bestNodeId) {
+                    await setFocusNode(window.bestNodeId);
+                } else {
+                    showFocusStatus('No best node available', 'error');
+                }
+            });
+        }
+        
+        async function setFocusNode(nodeId) {
+            const clearBtn = document.getElementById('clear-focus-btn');
+            
+            try {
+                const response = await fetch('/api/focus_node', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ focus_node_id: nodeId })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    window.currentFocusNodeId = nodeId;
+                    
+                    if (nodeId) {
+                        // Get node info from current data
+                        const nodeInfo = cosmographNodeData?.find(n => n.id === nodeId);
+                        updateFocusDisplay(nodeInfo || { id: nodeId });
+                        showFocusStatus('✅ Focus set! Future mutations will occur in this subtree.', 'success');
+                    } else {
+                        updateFocusDisplay(null);
+                        showFocusStatus('✅ Focus cleared. Mutations will occur across all programs.', 'success');
+                    }
+                    
+                    // Update the tree visualization to show focused subtree
+                    if (cosmographInstance && cosmographNodeData) {
+                        highlightFocusedSubtree(nodeId);
+                    }
+                } else {
+                    showFocusStatus(`❌ ${result.error || 'Failed to set focus'}`, 'error');
+                }
+            } catch (error) {
+                showFocusStatus(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function updateFocusDisplay(nodeInfo) {
+            const displayDiv = document.getElementById('focus-node-display');
+            const clearBtn = document.getElementById('clear-focus-btn');
+            const subtreeInfoDiv = document.getElementById('focus-subtree-info');
+            
+            if (!displayDiv) return;
+            
+            if (nodeInfo && window.currentFocusNodeId) {
+                const name = nodeInfo.agent_name || nodeInfo.id?.substring(0, 8) || 'Unknown';
+                const score = nodeInfo.combined_score != null ? formatScore(nodeInfo.combined_score) : 'N/A';
+                const gen = nodeInfo.generation != null ? nodeInfo.generation : 'N/A';
+                
+                displayDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 24px;">🎯</span>
+                        <div>
+                            <div style="font-weight: bold; color: #28a745;">${name}</div>
+                            <div style="font-size: 12px; color: #666;">Score: ${score} | Gen: ${gen}</div>
+                            <div style="font-size: 11px; color: #999; font-family: monospace;">${window.currentFocusNodeId?.substring(0, 16)}...</div>
+                        </div>
+                    </div>
+                `;
+                clearBtn.disabled = false;
+                
+                // Show subtree stats if we have data
+                if (cosmographNodeData && subtreeInfoDiv) {
+                    const subtreeNodes = getSubtreeNodes(window.currentFocusNodeId);
+                    const subtreeStatsDiv = document.getElementById('focus-subtree-stats');
+                    subtreeStatsDiv.innerHTML = `
+                        <div>Nodes in subtree: <strong>${subtreeNodes.length}</strong></div>
+                        <div>Depth from focus: <strong>${getMaxDepth(window.currentFocusNodeId)}</strong></div>
+                    `;
+                    subtreeInfoDiv.style.display = 'block';
+                }
+            } else {
+                displayDiv.innerHTML = `
+                    <div style="color: #666;">
+                        <span style="font-size: 18px;">○</span> No focus set - mutations occur across all programs
+                    </div>
+                `;
+                clearBtn.disabled = true;
+                if (subtreeInfoDiv) subtreeInfoDiv.style.display = 'none';
+            }
+        }
+        
+        function getSubtreeNodes(rootId) {
+            if (!cosmographNodeData) return [];
+            
+            const subtree = [];
+            const queue = [rootId];
+            
+            while (queue.length > 0) {
+                const currentId = queue.shift();
+                const node = cosmographNodeData.find(n => n.id === currentId);
+                if (node) {
+                    subtree.push(node);
+                    // Find children
+                    const children = cosmographNodeData.filter(n => n.parent_id === currentId);
+                    children.forEach(child => queue.push(child.id));
+                }
+            }
+            
+            return subtree;
+        }
+        
+        function getMaxDepth(rootId) {
+            if (!cosmographNodeData) return 0;
+            
+            let maxDepth = 0;
+            const queue = [{id: rootId, depth: 0}];
+            
+            while (queue.length > 0) {
+                const {id, depth} = queue.shift();
+                maxDepth = Math.max(maxDepth, depth);
+                const children = cosmographNodeData.filter(n => n.parent_id === id);
+                children.forEach(child => queue.push({id: child.id, depth: depth + 1}));
+            }
+            
+            return maxDepth;
+        }
+        
+        function highlightFocusedSubtree(focusNodeId) {
+            if (!cosmographInstance || !cosmographNodeData) return;
+            
+            // Get subtree node IDs
+            const subtreeNodeIds = focusNodeId ? new Set(getSubtreeNodes(focusNodeId).map(n => n.id)) : null;
+            
+            // Update colors to highlight subtree
+            const colors = new Float32Array(cosmographNodeData.length * 4);
+            cosmographNodeData.forEach((node, i) => {
+                let r, g, b, a = 1.0;
+                
+                const inSubtree = !focusNodeId || subtreeNodeIds.has(node.id);
+                
+                if (node.id === focusNodeId) {
+                    // Focus node: bright cyan
+                    r = 0.0; g = 0.9; b = 0.9;
+                } else if (node.id === window.bestNodeId) {
+                    // Best node: gold
+                    r = 1.0; g = 0.84; b = 0.0;
+                    a = inSubtree ? 1.0 : 0.3;
+                } else if (!node.correct) {
+                    // Incorrect: red
+                    r = 0.91; g = 0.30; b = 0.24;
+                    a = inSubtree ? 0.8 : 0.2;
+                } else if (inSubtree) {
+                    // In subtree: use score-based coloring
+                    const score = node.combined_score;
+                    const minScore = window.minScoreGlobal || 0;
+                    const scoreRange = window.scoreRangeGlobal || 1;
+                    if (score !== null && !isNaN(score) && scoreRange > 0) {
+                        const t = Math.max(0, Math.min(1, (score - minScore) / scoreRange));
+                        if (t < 0.5) {
+                            r = 0.27; g = 0.47 * (1 + t); b = 0.63;
+                        } else {
+                            r = 0.55 + 0.44 * (t - 0.5) * 2; g = 0.76 + 0.15 * (t - 0.5) * 2; b = 0.22;
+                        }
+                    } else {
+                        r = 0.3; g = 0.6; b = 0.8;
+                    }
+                } else {
+                    // Not in subtree: dim gray
+                    r = 0.4; g = 0.4; b = 0.4;
+                    a = 0.25;
+                }
+                
+                colors[i * 4] = r;
+                colors[i * 4 + 1] = g;
+                colors[i * 4 + 2] = b;
+                colors[i * 4 + 3] = a;
+            });
+            
+            cosmographInstance.setPointColors(colors);
+            cosmographInstance.render();
+        }
+        
+        function showFocusStatus(message, type) {
+            const statusDiv = document.getElementById('focus-status');
+            if (!statusDiv) return;
+            
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = message;
+            
+            const colors = {
+                success: { bg: '#d4edda', text: '#155724' },
+                error: { bg: '#f8d7da', text: '#721c24' },
+                info: { bg: '#cce5ff', text: '#004085' }
+            };
+            const color = colors[type] || colors.info;
+            statusDiv.style.backgroundColor = color.bg;
+            statusDiv.style.color = color.text;
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        }
+        // ========== End Focus Controls ==========
 
         
         // Function to download meta content as PDF using backend conversion
@@ -2626,11 +3343,13 @@ ${'='.repeat(80)}
                 } else if (dbs.length > 0 && !force) {
                     // Auto-select the first task and result
                     const firstTask = Object.keys(tasksAndResults)[0];
+                    console.log("[DEBUG] Auto-select: firstTask=", firstTask, "tasksAndResults=", tasksAndResults);
                     if (firstTask && tasksAndResults[firstTask].length > 0) {
                         taskSelect.value = firstTask;
                         populateResultSelect(firstTask);
                         const firstResult = tasksAndResults[firstTask][0].path;
                         resultSelect.value = firstResult;
+                        console.log("[DEBUG] Auto-loading database:", firstResult);
                         loadDatabase(firstResult);
                     }
                 }
@@ -2831,7 +3550,9 @@ ${'='.repeat(80)}
                         const maxGen = maxGenInput ? parseInt(maxGenInput.value) || stats.max_generation : stats.max_generation;
                         
                         window.isReloadingData = true;
+                        window.isAutoRefreshing = true;
                         await loadDynamicDataSilent(window.currentDbPath, { min_gen: minGen, max_gen: maxGen });
+                        window.isAutoRefreshing = false;
                     }
                     return;
                 }
@@ -2855,9 +3576,11 @@ ${'='.repeat(80)}
                         const originalText = scanStatus.textContent;
                         scanStatus.textContent = "Auto-refreshing...";
                         
-                        // Reload the data
+                        // Reload the data (set flag so processData uses updateCosmograph)
                         window.isReloadingData = true;
+                        window.isAutoRefreshing = true;
                         await loadDatabaseSilent(window.currentDbPath);
+                        window.isAutoRefreshing = false;
                         
                         // The scan status is now updated by loadDatabaseSilent with the new timestamp
                     }
@@ -2875,7 +3598,9 @@ ${'='.repeat(80)}
                         scanStatus.textContent = "Auto-refreshing...";
                         
                         window.isReloadingData = true;
+                        window.isAutoRefreshing = true;
                         await loadDatabaseSilent(window.currentDbPath);
+                        window.isAutoRefreshing = false;
                         
                         // The scan status is now updated by loadDatabaseSilent with the new timestamp
                     }
@@ -2959,7 +3684,9 @@ ${'='.repeat(80)}
                 const currentRightTab = document.querySelector('.tab.active');
                 const currentRightTabId = currentRightTab ? currentRightTab.getAttribute('data-tab') : null;
                 
+                console.log("[DEBUG] loadDatabaseSilent: About to call processData, isAutoRefreshing=", window.isAutoRefreshing);
                 processData(data);
+                console.log("[DEBUG] loadDatabaseSilent: After processData");
                 
                 // Try to restore the selected node if it still exists
                 if (selectedNodeId && window.treeData) {
@@ -3048,6 +3775,21 @@ ${'='.repeat(80)}
 
             window.currentDbPath = dbPath;
             
+            // Load objective function for this database
+            if (typeof window.loadObjectiveFunction === 'function') {
+                window.loadObjectiveFunction();
+            }
+            
+            // Load preprompt for this database
+            if (typeof window.loadPreprompt === 'function') {
+                window.loadPreprompt();
+            }
+            
+            // Load focus node for this database
+            if (typeof window.loadFocusNode === 'function') {
+                window.loadFocusNode();
+            }
+            
             if (window.isResizing) {
                 console.log("[DEBUG] Skipping DB loading during resize");
                 return;
@@ -3091,11 +3833,47 @@ ${'='.repeat(80)}
                 });
         }
         
+        // Cache for program details fetched on demand
+        // Cache is cleared when new data is loaded to ensure fresh data
+        window.programDetailsCache = {};
+        
+        // Clear the program details cache (called when loading new data)
+        function clearProgramDetailsCache() {
+            console.log("[DEBUG] Clearing program details cache");
+            window.programDetailsCache = {};
+        }
+        
+        // Fetch full details for a single program (called when node is selected)
+        async function fetchProgramDetails(programId) {
+            // Check cache first
+            if (window.programDetailsCache[programId]) {
+                return window.programDetailsCache[programId];
+            }
+            
+            try {
+                const response = await fetch(`/get_program_details?id=${encodeURIComponent(programId)}`);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch program details (HTTP ${response.status})`);
+                }
+                const details = await response.json();
+                // Cache the result
+                window.programDetailsCache[programId] = details;
+                return details;
+            } catch (error) {
+                console.error("[DEBUG] Error fetching program details:", error);
+                return null;
+            }
+        }
+        
         function loadFullData(dbPath) {
             const scanStatus = document.getElementById("scan-status");
             scanStatus.textContent = "Loading data...";
             
-            fetch(`/get_programs?db_path=${encodeURIComponent(dbPath)}`)
+            // Clear program details cache when loading new data
+            clearProgramDetailsCache();
+            
+            // Use lightweight summary endpoint for initial load
+            fetch(`/get_programs_summary?db_path=${encodeURIComponent(dbPath)}`)
                     .then(response => {
                         if (!response.ok) {
                             throw new Error(`Failed to load data (HTTP ${response.status})`);
@@ -3361,11 +4139,14 @@ ${'='.repeat(80)}
                 updateMetaInfoTab(data);
                 updateParetoView();
                 
-                // Restore the right-side tab state instead of hardcoded click
-                if (activeRightTabId && document.querySelector(`.tab[data-tab="${activeRightTabId}"]`)) {
-                    document.querySelector(`.tab[data-tab="${activeRightTabId}"]`).click();
-                } else {
-                    document.querySelector('.tab[data-tab="agent-info"]').click();
+                // Only restore tabs if not auto-refreshing (to avoid side effects)
+                if (!window.isAutoRefreshing) {
+                    // Restore the right-side tab state instead of hardcoded click
+                    if (activeRightTabId && document.querySelector(`.tab[data-tab="${activeRightTabId}"]`)) {
+                        document.querySelector(`.tab[data-tab="${activeRightTabId}"]`).click();
+                    } else {
+                        document.querySelector('.tab[data-tab="agent-info"]').click();
+                    }
                 }
                 
                 updateScoreHeatbar();
@@ -3373,24 +4154,38 @@ ${'='.repeat(80)}
                 // Clear any cached view data to force refreshes when new data is loaded
                 window.embeddingsCreated = false;
                 
-                // Clear all visualization containers to force complete refresh
-                const clearContainer = (id) => {
-                    const container = document.getElementById(id);
-                    if (container) container.innerHTML = '';
-                };
-                
-                clearContainer('embeddings-heatmap');
-                clearContainer('islands-container');
-                clearContainer('best-path-container');
+                // Only clear visualization containers if not auto-refreshing
+                if (!window.isAutoRefreshing) {
+                    // Clear all visualization containers to force complete refresh
+                    const clearContainer = (id) => {
+                        const container = document.getElementById(id);
+                        if (container) container.innerHTML = '';
+                    };
+                    
+                    clearContainer('embeddings-heatmap');
+                    clearContainer('islands-container');
+                    clearContainer('best-path-container');
 
-                clearContainer('cluster-plot-2d');
-                clearContainer('cluster-plot-3d');
-                clearContainer('metrics-plots');
+                    clearContainer('cluster-plot-2d');
+                    clearContainer('cluster-plot-3d');
+                    clearContainer('metrics-plots');
+                }
                 
                 // Now, render the correct left-hand view based on the stored activeLeftTabId
                 if (activeLeftTabId === 'tree-view') {
                     document.getElementById("tree-legend").style.display = "block";
-                    renderGraph(data);
+                    // Use updateCosmograph if the instance already exists (preserves camera/simulation state)
+                    // Use renderCosmograph only for initial creation
+                    console.log("[DEBUG] Cosmograph render decision: isAutoRefreshing=", window.isAutoRefreshing, "cosmographInstance=", !!cosmographInstance);
+                    if (cosmographInstance) {
+                        // Cosmograph already exists - use incremental update to preserve view state
+                        console.log("[DEBUG] Using updateCosmograph (incremental) - preserving view state");
+                        updateCosmograph(data);
+                    } else {
+                        // First time - create new Cosmograph
+                        console.log("[DEBUG] Using renderCosmograph (initial creation)");
+                        renderCosmograph(data);
+                    }
                 } else {
                     document.getElementById("tree-legend").style.display = "none";
                     // Process the active view to improve performance
@@ -4145,6 +4940,817 @@ ${'='.repeat(80)}
             }
         }
 
+        // ============================================================================
+        // COSMOGRAPH GPU-ACCELERATED GRAPH RENDERING
+        // ============================================================================
+        
+        // Global Cosmograph instance
+        let cosmographInstance = null;
+        let cosmographNodeData = []; // Store node data for click lookups
+        let cosmographSimulationPaused = false;
+        let cosmographLastDataLength = 0; // Track data size for incremental updates
+        let cosmographSavedTransform = null; // Store zoom/pan state for restoration
+        
+        // Update Cosmograph with new data without destroying the instance (for auto-refresh)
+        function updateCosmograph(data) {
+            console.log("[DEBUG] updateCosmograph called with", data.length, "nodes, instance exists:", !!cosmographInstance);
+            
+            if (!cosmographInstance) {
+                // No existing instance, create new one
+                console.log("[DEBUG] No cosmograph instance, falling back to renderCosmograph");
+                renderCosmograph(data);
+                return;
+            }
+            
+            const previousLength = cosmographLastDataLength;
+            const hasNewNodes = (data.length !== previousLength);
+            cosmographLastDataLength = data.length;
+            
+            // Update node data for lookups (needed for click handling)
+            cosmographNodeData = data.map((d, index) => ({
+                ...d,
+                index: index,
+                agent_name: d.metadata?.patch_name || d.agent_name || "unnamed_agent"
+            }));
+            
+            // DON'T update the visual graph at all - this preserves zoom/position completely
+            // The user can manually trigger a full re-render by switching tabs or reloading the database
+            
+            if (hasNewNodes) {
+                console.log("[DEBUG] " + (data.length - previousLength) + " new nodes detected but NOT rendering to preserve view");
+                console.log("[DEBUG] Switch tabs and back, or reload database, to see new nodes");
+                
+                // Show a subtle notification that new nodes are available
+                const scanStatus = document.getElementById("scan-status");
+                if (scanStatus && !scanStatus.textContent.includes("new nodes")) {
+                    scanStatus.textContent += " (" + (data.length - previousLength) + " new nodes - switch tabs to refresh view)";
+                }
+            } else {
+                console.log("[DEBUG] No new nodes - data refreshed, view unchanged");
+            }
+        }
+        
+        // Prepare data arrays for Cosmograph (shared between render and update)
+        function prepareCosmographData(nodeData, nodeIdToIndex) {
+            // Calculate scores for coloring
+            const validScores = nodeData
+                .filter(d => d.correct && d.combined_score !== null && !isNaN(d.combined_score))
+                .map(d => d.combined_score);
+            const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
+            const maxScore = validScores.length > 0 ? Math.max(...validScores) : 1;
+            const scoreRange = maxScore - minScore || 1;
+            
+            // Find best node (for highlighting)
+            const correctNodes = nodeData.filter(d => 
+                d.correct && d.combined_score !== null && !isNaN(d.combined_score)
+            );
+            const bestNode = correctNodes.length > 0 
+                ? correctNodes.reduce((best, node) => node.combined_score > best.combined_score ? node : best)
+                : null;
+            window.bestNodeId = bestNode?.id;
+            
+            // Island colors (matching D3 version)
+            const islandColors = [
+                [0.12, 0.47, 0.71, 1.0], // blue
+                [0.17, 0.63, 0.17, 1.0], // green  
+                [0.58, 0.40, 0.74, 1.0], // purple
+                [0.55, 0.34, 0.29, 1.0], // brown
+                [0.89, 0.47, 0.76, 1.0], // pink
+                [0.50, 0.50, 0.50, 1.0], // gray
+                [0.74, 0.74, 0.13, 1.0], // olive
+                [0.09, 0.75, 0.81, 1.0], // cyan
+                [0.68, 0.78, 0.91, 1.0], // light blue
+            ];
+            
+            const spaceSize = 4096;
+            
+            // Group by generation for layout
+            const generationGroups = {};
+            nodeData.forEach((node, i) => {
+                const gen = node.generation || 0;
+                if (!generationGroups[gen]) generationGroups[gen] = [];
+                generationGroups[gen].push(i);
+            });
+            
+            const generations = Object.keys(generationGroups).map(Number).sort((a, b) => a - b);
+            
+            // Prepare positions - radial layout
+            const positions = new Float32Array(nodeData.length * 2);
+            const centerX = spaceSize / 2;
+            const centerY = spaceSize / 2;
+            const baseRadius = 150;
+            const radiusStep = 120;
+            
+            generations.forEach((gen, genIndex) => {
+                const nodesInGen = generationGroups[gen];
+                const radius = genIndex === 0 ? 0 : baseRadius + (genIndex - 1) * radiusStep;
+                const angleStep = (2 * Math.PI) / nodesInGen.length;
+                const angleOffset = (genIndex % 2) * (angleStep / 2);
+                
+                nodesInGen.forEach((nodeIdx, posInGen) => {
+                    if (genIndex === 0) {
+                        const miniRadius = nodesInGen.length > 1 ? 30 : 0;
+                        const miniAngle = (2 * Math.PI * posInGen) / nodesInGen.length;
+                        positions[nodeIdx * 2] = centerX + miniRadius * Math.cos(miniAngle);
+                        positions[nodeIdx * 2 + 1] = centerY + miniRadius * Math.sin(miniAngle);
+                    } else {
+                        const angle = angleOffset + angleStep * posInGen;
+                        positions[nodeIdx * 2] = centerX + radius * Math.cos(angle);
+                        positions[nodeIdx * 2 + 1] = centerY + radius * Math.sin(angle);
+                    }
+                });
+            });
+            
+            // Prepare links
+            const linkPairs = [];
+            nodeData.forEach((node, index) => {
+                if (node.parent_id && nodeIdToIndex.has(node.parent_id)) {
+                    const parentIndex = nodeIdToIndex.get(node.parent_id);
+                    linkPairs.push(parentIndex, index);
+                }
+            });
+            const links = new Float32Array(linkPairs);
+            
+            // Prepare colors
+            const colors = new Float32Array(nodeData.length * 4);
+            nodeData.forEach((node, i) => {
+                let r, g, b, a = 1.0;
+                
+                if (node.id === bestNode?.id) {
+                    r = 1.0; g = 0.84; b = 0.0;
+                } else if (!node.correct) {
+                    r = 0.91; g = 0.30; b = 0.24;
+                } else if (node.island_idx !== null && node.island_idx !== undefined) {
+                    const islandColor = islandColors[node.island_idx % islandColors.length];
+                    r = islandColor[0]; g = islandColor[1]; b = islandColor[2];
+                } else {
+                    const score = node.combined_score;
+                    if (score !== null && !isNaN(score)) {
+                        const t = (score - minScore) / scoreRange;
+                        r = 0.27 + t * 0.73;
+                        g = 0.00 + t * 0.85;
+                        b = 0.33 + t * 0.37;
+                    } else {
+                        r = 0.20; g = 0.60; b = 0.86;
+                    }
+                }
+                
+                colors[i * 4] = r;
+                colors[i * 4 + 1] = g;
+                colors[i * 4 + 2] = b;
+                colors[i * 4 + 3] = a;
+            });
+            
+            // Prepare sizes
+            const sizes = new Float32Array(nodeData.length);
+            nodeData.forEach((node, i) => {
+                if (node.id === bestNode?.id) {
+                    sizes[i] = 20;
+                } else if (!node.correct) {
+                    sizes[i] = 8;
+                } else {
+                    sizes[i] = 12;
+                }
+            });
+            
+            return { positions, colors, sizes, links };
+        }
+        
+        function renderCosmograph(data) {
+            console.log("[DEBUG] renderCosmograph CALLED - this will reset the view!");
+            console.trace("[DEBUG] renderCosmograph call stack:");
+            console.log("[DEBUG] Starting Cosmograph rendering with", data.length, "nodes");
+            
+            try {
+                const container = document.getElementById('cosmograph-container');
+                if (!container) {
+                    console.error("[DEBUG] Cosmograph container not found");
+                    return;
+                }
+                
+                // Clear existing instance
+                if (cosmographInstance) {
+                    try {
+                        cosmographInstance.destroy();
+                    } catch (e) {
+                        console.warn("[DEBUG] Error destroying previous Cosmograph instance:", e);
+                    }
+                    cosmographInstance = null;
+                }
+                
+                // Store node data for lookups
+                cosmographNodeData = data.map((d, index) => ({
+                    ...d,
+                    index: index,
+                    agent_name: d.patch_name || d.metadata?.patch_name || d.agent_name || "unnamed_agent"
+                }));
+                
+                // Create node ID to index mapping
+                const nodeIdToIndex = new Map();
+                cosmographNodeData.forEach((node, index) => {
+                    nodeIdToIndex.set(node.id, index);
+                });
+                
+                // Calculate scores for coloring
+                const validScores = cosmographNodeData
+                    .filter(d => d.correct && d.combined_score !== null && !isNaN(d.combined_score))
+                    .map(d => d.combined_score);
+                const minScore = validScores.length > 0 ? Math.min(...validScores) : 0;
+                const maxScore = validScores.length > 0 ? Math.max(...validScores) : 1;
+                const scoreRange = maxScore - minScore || 1;
+                
+                // Store globally for highlight functions
+                window.minScoreGlobal = minScore;
+                window.scoreRangeGlobal = scoreRange;
+                
+                // Find best node (for highlighting)
+                const correctNodes = cosmographNodeData.filter(d => 
+                    d.correct && d.combined_score !== null && !isNaN(d.combined_score)
+                );
+                const bestNode = correctNodes.length > 0 
+                    ? correctNodes.reduce((best, node) => node.combined_score > best.combined_score ? node : best)
+                    : null;
+                window.bestNodeId = bestNode?.id;
+                
+                // Island colors (matching D3 version)
+                const islandColors = [
+                    [0.12, 0.47, 0.71, 1.0], // blue
+                    [0.17, 0.63, 0.17, 1.0], // green  
+                    [0.58, 0.40, 0.74, 1.0], // purple
+                    [0.55, 0.34, 0.29, 1.0], // brown
+                    [0.89, 0.47, 0.76, 1.0], // pink
+                    [0.50, 0.50, 0.50, 1.0], // gray
+                    [0.74, 0.74, 0.13, 1.0], // olive
+                    [0.09, 0.75, 0.81, 1.0], // cyan
+                    [0.68, 0.78, 0.91, 1.0], // light blue
+                ];
+                
+                // Prepare positions using PCA embeddings if available, or hierarchical layout
+                const positions = new Float32Array(cosmographNodeData.length * 2);
+                
+                // Group by generation for layout
+                const generationGroups = {};
+                cosmographNodeData.forEach((node, i) => {
+                    const gen = node.generation || 0;
+                    if (!generationGroups[gen]) generationGroups[gen] = [];
+                    generationGroups[gen].push(i);
+                });
+                
+                const generations = Object.keys(generationGroups).map(Number).sort((a, b) => a - b);
+                const spaceSize = 4096;
+                const centerX = spaceSize / 2;
+                const centerY = spaceSize / 2;
+                
+                // Simple initial positions - spread by generation
+                // Force simulation will organize them organically
+                cosmographNodeData.forEach((node, idx) => {
+                    const gen = node.generation || 0;
+                    const angle = Math.random() * 2 * Math.PI;
+                    const radius = 50 + gen * 80 + Math.random() * 50;
+                    positions[idx * 2] = centerX + radius * Math.cos(angle);
+                    positions[idx * 2 + 1] = centerY + radius * Math.sin(angle);
+                });
+                
+                // Prepare links (edges between parent and child)
+                const linkPairs = [];
+                cosmographNodeData.forEach((node, index) => {
+                    if (node.parent_id && nodeIdToIndex.has(node.parent_id)) {
+                        const parentIndex = nodeIdToIndex.get(node.parent_id);
+                        linkPairs.push(parentIndex, index);
+                    }
+                });
+                const links = new Float32Array(linkPairs);
+                console.log(`[DEBUG] Created ${linkPairs.length / 2} links from parent-child relationships`);
+                
+                // Prepare colors (RGBA as Float32Array) - color by global score
+                const colors = new Float32Array(cosmographNodeData.length * 4);
+                cosmographNodeData.forEach((node, i) => {
+                    let r, g, b, a = 1.0;
+                    
+                    if (node.id === bestNode?.id) {
+                        // Best node: gold
+                        r = 1.0; g = 0.84; b = 0.0;
+                    } else if (!node.correct) {
+                        // Incorrect: red
+                        r = 0.91; g = 0.30; b = 0.24;
+                    } else {
+                        // Color by global score using viridis colormap
+                        const score = node.combined_score;
+                        if (score !== null && !isNaN(score) && scoreRange > 0) {
+                            const t = Math.max(0, Math.min(1, (score - minScore) / scoreRange));
+                            // Viridis colormap: purple (low) -> blue -> green -> yellow (high)
+                            if (t < 0.25) {
+                                const s = t / 0.25;
+                                r = 0.27 * (1 - s) + 0.28 * s;
+                                g = 0.00 * (1 - s) + 0.47 * s;
+                                b = 0.33 * (1 - s) + 0.63 * s;
+                            } else if (t < 0.5) {
+                                const s = (t - 0.25) / 0.25;
+                                r = 0.28 * (1 - s) + 0.13 * s;
+                                g = 0.47 * (1 - s) + 0.67 * s;
+                                b = 0.63 * (1 - s) + 0.55 * s;
+                            } else if (t < 0.75) {
+                                const s = (t - 0.5) / 0.25;
+                                r = 0.13 * (1 - s) + 0.55 * s;
+                                g = 0.67 * (1 - s) + 0.76 * s;
+                                b = 0.55 * (1 - s) + 0.22 * s;
+                            } else {
+                                const s = (t - 0.75) / 0.25;
+                                r = 0.55 * (1 - s) + 0.99 * s;
+                                g = 0.76 * (1 - s) + 0.91 * s;
+                                b = 0.22 * (1 - s) + 0.15 * s;
+                            }
+                        } else {
+                            r = 0.27; g = 0.00; b = 0.33; // Default purple (low score)
+                        }
+                    }
+                    
+                    colors[i * 4] = r;
+                    colors[i * 4 + 1] = g;
+                    colors[i * 4 + 2] = b;
+                    colors[i * 4 + 3] = a;
+                });
+                
+                // Prepare sizes
+                const sizes = new Float32Array(cosmographNodeData.length);
+                cosmographNodeData.forEach((node, i) => {
+                    if (node.id === bestNode?.id) {
+                        sizes[i] = 20; // Best node larger
+                    } else if (!node.correct) {
+                        sizes[i] = 8; // Incorrect smaller
+                    } else {
+                        sizes[i] = 12; // Default
+                    }
+                });
+                
+                // Create Cosmograph config - styled like PLINDER example
+                const config = {
+                    spaceSize: spaceSize,
+                    backgroundColor: '#0a0a0f',
+                    
+                    // Smooth physics simulation (like PLINDER)
+                    disableSimulation: false,
+                    simulationFriction: 0.85,   // Smooth damping
+                    simulationGravity: 0.25,    // Center gravity to keep graph together
+                    simulationRepulsion: 0.5,   // Node repulsion
+                    simulationLinkSpring: 0.3,  // Gentle link attraction
+                    simulationLinkDistance: 30,
+                    simulationDecay: 1000,      // More iterations for smoother settling
+                    
+                    // Visual settings - larger, more visible nodes
+                    pointSize: 8,
+                    pointGreyoutOpacity: 1.0,   // No greying out of unselected points - keep all points visible
+                    linkWidth: 1.5,
+                    linkColor: [0.4, 0.5, 0.7, 0.6],
+                    linkArrows: true,           // Show directed arrows
+                    curvedLinks: true,          // Curved links like PLINDER
+                    curvedLinkWeight: 0.8,
+                    showLinks: true,
+                    linkVisibilityMinTransparency: 0.1,
+                    
+                    // Dynamic labels (key feature of PLINDER)
+                    showDynamicLabels: true,
+                    dynamicLabelAccessor: (i) => {
+                        const node = cosmographNodeData[i];
+                        if (!node) return '';
+                        // Show label for high-scoring or best nodes
+                        const score = node.combined_score || 0;
+                        if (node.id === window.bestNodeId) return `★ ${node.agent_name}`;
+                        if (score > 0) return node.agent_name || '';
+                        return '';
+                    },
+                    
+                    // View settings
+                    fitViewOnInit: true,
+                    fitViewDelay: 1000,
+                    fitViewPadding: 0.2,
+                    
+                    // Interaction
+                    enableDrag: true,
+                    
+                    // Track zoom changes so we can restore after updates
+                    onZoom: (transform) => {
+                        // Save the transform whenever user zooms/pans
+                        if (transform && (transform.k || transform.x || transform.y)) {
+                            cosmographSavedTransform = { k: transform.k, x: transform.x, y: transform.y };
+                        }
+                    },
+                    
+                    // Click handler with double-click detection for focus
+                    onClick: (pointIndex) => {
+                        // Handle background click (no point selected) - clear selection
+                        if (pointIndex === undefined || pointIndex === null || pointIndex < 0) {
+                            console.log('[DEBUG] Background click - clearing selection');
+                            clearCosmographSelection();
+                            return;
+                        }
+                        
+                        const node = cosmographNodeData[pointIndex];
+                        if (node) {
+                            const now = Date.now();
+                            const lastClick = window.lastCosmographClick || { nodeId: null, time: 0 };
+                            
+                            if (lastClick.nodeId === node.id && (now - lastClick.time) < 400) {
+                                // Double-click: set as focus node
+                                console.log('[DEBUG] Double-click on node:', node.id.substring(0, 8), '- setting as focus');
+                                setFocusNode(node.id);
+                                window.lastCosmographClick = { nodeId: null, time: 0 };
+                            } else {
+                                // Single click: show details
+                                console.log('[DEBUG] Click on node:', node.id.substring(0, 8), node.agent_name);
+                                handleCosmographNodeClick(node);
+                                window.lastCosmographClick = { nodeId: node.id, time: now };
+                            }
+                        }
+                    },
+                    
+                    // Hover handler for tooltip
+                    onPointMouseOver: (pointIndex) => {
+                        if (pointIndex !== undefined && pointIndex !== null && pointIndex >= 0) {
+                            const node = cosmographNodeData[pointIndex];
+                            if (node) {
+                                showCosmographTooltip(node);
+                            }
+                        }
+                    },
+                    
+                    onPointMouseOut: () => {
+                        hideCosmographTooltip();
+                    }
+                };
+                
+                // Create the Cosmograph instance
+                // Check if cosmos.gl is available (UMD build exports to window.Cosmos)
+                if (typeof window.Cosmos === 'undefined') {
+                    console.error("[DEBUG] Cosmograph library not loaded, falling back to D3");
+                    document.getElementById('tree').style.display = 'block';
+                    document.getElementById('cosmograph-container').style.display = 'none';
+                    renderGraph(data);
+                    return;
+                }
+                
+                const GraphClass = window.Cosmos.Graph;
+                if (!GraphClass) {
+                    console.warn("[DEBUG] Cosmograph Graph class not found");
+                    console.log("[DEBUG] Available in Cosmos:", Object.keys(window.Cosmos));
+                    document.getElementById('tree').style.display = 'block';
+                    document.getElementById('cosmograph-container').style.display = 'none';
+                    renderGraph(data);
+                    return;
+                }
+                
+                try {
+                    // Log link details for debugging
+                    console.log("[DEBUG] Links array length:", links.length);
+                    console.log("[DEBUG] Links array (first 20 values):", Array.from(links.slice(0, 20)));
+                    console.log("[DEBUG] Number of link pairs:", links.length / 2);
+                    
+                    cosmographInstance = new GraphClass(container, config);
+                    
+                    // Set data
+                    cosmographInstance.setPointPositions(positions);
+                    cosmographInstance.setPointColors(colors);
+                    cosmographInstance.setPointSizes(sizes);
+                    
+                    // Set point clusters based on island IDs for clustering force (like PLINDER)
+                    const pointClusters = new Float32Array(cosmographNodeData.length);
+                    const islandSet = new Set();
+                    cosmographNodeData.forEach((node, i) => {
+                        const islandId = node.island_id ?? node.metadata?.island_id ?? 0;
+                        pointClusters[i] = islandId;
+                        islandSet.add(islandId);
+                    });
+                    cosmographInstance.setPointClusters(pointClusters);
+                    
+                    // Set cluster positions (spread islands out in a circle)
+                    const numClusters = Math.max(...islandSet) + 1;
+                    const clusterPositions = new Float32Array(numClusters * 2);
+                    for (let i = 0; i < numClusters; i++) {
+                        const angle = (i / numClusters) * 2 * Math.PI - Math.PI / 2; // Start from top
+                        const radius = spaceSize * 0.25;
+                        clusterPositions[i * 2] = centerX + radius * Math.cos(angle);
+                        clusterPositions[i * 2 + 1] = centerY + radius * Math.sin(angle);
+                    }
+                    cosmographInstance.setClusterPositions(clusterPositions);
+                    
+                    // Set cluster strength - moderate attraction to cluster centers
+                    cosmographInstance.setPointClusterStrength(0.8);
+                    
+                    console.log("[DEBUG] Enabled clustering with", numClusters, "islands");
+                    
+                    // Set links - cosmos.gl expects Float32Array for link indices
+                    if (links.length > 0) {
+                        console.log("[DEBUG] Setting links as Float32Array:", links.length, "indices");
+                        cosmographInstance.setLinks(links);
+                        
+                        // Set link widths (thinner, more subtle)
+                        const numLinks = links.length / 2;
+                        const linkWidths = new Float32Array(numLinks);
+                        for (let i = 0; i < numLinks; i++) {
+                            linkWidths[i] = 1.0;
+                        }
+                        cosmographInstance.setLinkWidths(linkWidths);
+                        
+                        // Set link colors (subtle, semi-transparent)
+                        const linkColors = new Float32Array(numLinks * 4);
+                        for (let i = 0; i < numLinks; i++) {
+                            linkColors[i * 4] = 0.6;     // R
+                            linkColors[i * 4 + 1] = 0.7; // G
+                            linkColors[i * 4 + 2] = 0.9; // B
+                            linkColors[i * 4 + 3] = 0.4; // A - more transparent
+                        }
+                        cosmographInstance.setLinkColors(linkColors);
+                        
+                        console.log("[DEBUG] Set", numLinks, "link widths and colors");
+                    }
+                    
+                    // Render
+                    cosmographInstance.render();
+                    
+                    // Start simulation and fit view
+                    if (cosmographInstance.start) {
+                        cosmographInstance.start();
+                    }
+                    
+                    // Explicitly fit view after rendering to ensure all nodes are visible
+                    setTimeout(() => {
+                        if (cosmographInstance && cosmographInstance.fitView) {
+                            cosmographInstance.fitView();
+                            console.log("[DEBUG] Called fitView() after render");
+                        }
+                    }, 500);
+                    
+                    console.log("[DEBUG] Cosmograph rendered successfully");
+                    
+                    // Setup control buttons
+                    setupCosmographControls();
+                    
+                    // Handle pending node selection
+                    if (window.pendingNodeSelectionId) {
+                        const nodeIdToSelect = window.pendingNodeSelectionId;
+                        window.pendingNodeSelectionId = null;
+                        
+                        setTimeout(() => {
+                            const nodeToSelect = cosmographNodeData.find(n => n.id === nodeIdToSelect);
+                            if (nodeToSelect) {
+                                console.log('[DEBUG] Applying pending Cosmograph node selection:', nodeIdToSelect);
+                                handleCosmographNodeClick(nodeToSelect);
+                            } else {
+                                console.warn('[DEBUG] Could not find node for pending selection:', nodeIdToSelect);
+                            }
+                        }, 200);
+                    }
+                    
+                } catch (graphError) {
+                    console.error("[DEBUG] Error creating Cosmograph:", graphError);
+                    console.log("[DEBUG] Falling back to D3 tree view");
+                    document.getElementById('tree').style.display = 'block';
+                    document.getElementById('cosmograph-container').style.display = 'none';
+                    renderGraph(data);
+                }
+                
+            } catch (error) {
+                console.error("[DEBUG] Error in renderCosmograph:", error);
+                // Fallback to D3
+                document.getElementById('tree').style.display = 'block';
+                document.getElementById('cosmograph-container').style.display = 'none';
+                renderGraph(data);
+            }
+        }
+        
+        function handleCosmographNodeClick(node) {
+            // Display node details (same as D3 click handler)
+            displayNodeDetails(node);
+            
+            // Switch to Code tab
+            document.querySelector('.tab[data-tab="agent-code"]').click();
+            
+            // Highlight the clicked node (update colors)
+            if (cosmographInstance && cosmographNodeData.length > 0) {
+                // Find the node index
+                const nodeIndex = cosmographNodeData.findIndex(n => n.id === node.id);
+                if (nodeIndex >= 0) {
+                    const minScore = window.minScoreGlobal || 0;
+                    const scoreRange = window.scoreRangeGlobal || 1;
+                    
+                    // Create new colors array with selection highlight
+                    // Uses same viridis colormap as original render but dims non-selected
+                    const colors = new Float32Array(cosmographNodeData.length * 4);
+                    cosmographNodeData.forEach((n, i) => {
+                        let r, g, b, a = 1.0;
+                        const isSelected = n.id === node.id;
+                        
+                        if (isSelected) {
+                            // Selected node: bright orange highlight
+                            r = 1.0; g = 0.65; b = 0.0;
+                        } else if (n.id === window.bestNodeId) {
+                            // Best node: gold (dimmed)
+                            r = 1.0; g = 0.84; b = 0.0;
+                            a = 0.5;
+                        } else if (!n.correct) {
+                            // Incorrect: red (dimmed)
+                            r = 0.91; g = 0.30; b = 0.24;
+                            a = 0.3;
+                        } else {
+                            // Viridis colormap (dimmed)
+                            const score = n.combined_score;
+                            if (score !== null && !isNaN(score) && scoreRange > 0) {
+                                const t = Math.max(0, Math.min(1, (score - minScore) / scoreRange));
+                                if (t < 0.25) {
+                                    const s = t / 0.25;
+                                    r = 0.27 * (1 - s) + 0.28 * s;
+                                    g = 0.00 * (1 - s) + 0.47 * s;
+                                    b = 0.33 * (1 - s) + 0.63 * s;
+                                } else if (t < 0.5) {
+                                    const s = (t - 0.25) / 0.25;
+                                    r = 0.28 * (1 - s) + 0.13 * s;
+                                    g = 0.47 * (1 - s) + 0.67 * s;
+                                    b = 0.63 * (1 - s) + 0.55 * s;
+                                } else if (t < 0.75) {
+                                    const s = (t - 0.5) / 0.25;
+                                    r = 0.13 * (1 - s) + 0.55 * s;
+                                    g = 0.67 * (1 - s) + 0.76 * s;
+                                    b = 0.55 * (1 - s) + 0.22 * s;
+                                } else {
+                                    const s = (t - 0.75) / 0.25;
+                                    r = 0.55 * (1 - s) + 0.99 * s;
+                                    g = 0.76 * (1 - s) + 0.91 * s;
+                                    b = 0.22 * (1 - s) + 0.15 * s;
+                                }
+                            } else {
+                                r = 0.27; g = 0.00; b = 0.33;
+                            }
+                            a = 0.4;
+                        }
+                        
+                        colors[i * 4] = r;
+                        colors[i * 4 + 1] = g;
+                        colors[i * 4 + 2] = b;
+                        colors[i * 4 + 3] = a;
+                    });
+                    
+                    cosmographInstance.setPointColors(colors);
+                    cosmographInstance.render();
+                }
+            }
+        }
+        
+        // Clear cosmograph node selection and restore original colors
+        function clearCosmographSelection() {
+            if (!cosmographInstance || cosmographNodeData.length === 0) return;
+            
+            console.log('[DEBUG] Clearing cosmograph selection');
+            
+            // If there's a focus node active, restore focus highlighting instead of normal colors
+            if (window.currentFocusNodeId) {
+                console.log('[DEBUG] Focus node is active, restoring focus highlighting');
+                highlightFocusedSubtree(window.currentFocusNodeId);
+                return;
+            }
+            
+            const minScore = window.minScoreGlobal || 0;
+            const scoreRange = window.scoreRangeGlobal || 1;
+            
+            // Restore original colors - exact same logic as renderCosmograph
+            const colors = new Float32Array(cosmographNodeData.length * 4);
+            cosmographNodeData.forEach((n, i) => {
+                let r, g, b, a = 1.0;
+                
+                if (n.id === window.bestNodeId) {
+                    // Best node: gold
+                    r = 1.0; g = 0.84; b = 0.0;
+                } else if (!n.correct) {
+                    // Incorrect: red
+                    r = 0.91; g = 0.30; b = 0.24;
+                } else {
+                    // Viridis colormap
+                    const score = n.combined_score;
+                    if (score !== null && !isNaN(score) && scoreRange > 0) {
+                        const t = Math.max(0, Math.min(1, (score - minScore) / scoreRange));
+                        if (t < 0.25) {
+                            const s = t / 0.25;
+                            r = 0.27 * (1 - s) + 0.28 * s;
+                            g = 0.00 * (1 - s) + 0.47 * s;
+                            b = 0.33 * (1 - s) + 0.63 * s;
+                        } else if (t < 0.5) {
+                            const s = (t - 0.25) / 0.25;
+                            r = 0.28 * (1 - s) + 0.13 * s;
+                            g = 0.47 * (1 - s) + 0.67 * s;
+                            b = 0.63 * (1 - s) + 0.55 * s;
+                        } else if (t < 0.75) {
+                            const s = (t - 0.5) / 0.25;
+                            r = 0.13 * (1 - s) + 0.55 * s;
+                            g = 0.67 * (1 - s) + 0.76 * s;
+                            b = 0.55 * (1 - s) + 0.22 * s;
+                        } else {
+                            const s = (t - 0.75) / 0.25;
+                            r = 0.55 * (1 - s) + 0.99 * s;
+                            g = 0.76 * (1 - s) + 0.91 * s;
+                            b = 0.22 * (1 - s) + 0.15 * s;
+                        }
+                    } else {
+                        r = 0.27; g = 0.00; b = 0.33;
+                    }
+                }
+                
+                colors[i * 4] = r;
+                colors[i * 4 + 1] = g;
+                colors[i * 4 + 2] = b;
+                colors[i * 4 + 3] = a;
+            });
+            
+            cosmographInstance.setPointColors(colors);
+            cosmographInstance.render();
+        }
+        
+        function showCosmographTooltip(node) {
+            // Remove existing tooltip
+            hideCosmographTooltip();
+            
+            const tooltip = document.createElement('div');
+            tooltip.className = 'cosmograph-tooltip';
+            tooltip.id = 'cosmograph-tooltip';
+            
+            const patchName = node.metadata?.patch_name || node.agent_name || 'unnamed';
+            const score = formatScore(node.combined_score);
+            const patchType = node.metadata?.patch_type || 'N/A';
+            const gen = node.generation ?? 'N/A';
+            const islandIdx = node.island_idx !== null && node.island_idx !== undefined ? node.island_idx : 'N/A';
+            
+            tooltip.innerHTML = `
+                <strong>${patchName}</strong><br>
+                <span style="color: #aaa;">Generation:</span> ${gen}<br>
+                <span style="color: #aaa;">Score:</span> ${score}<br>
+                <span style="color: #aaa;">Type:</span> ${patchType}<br>
+                <span style="color: #aaa;">Island:</span> ${islandIdx}
+            `;
+            
+            document.body.appendChild(tooltip);
+            
+            // Position near cursor
+            document.addEventListener('mousemove', positionCosmographTooltip);
+        }
+        
+        function positionCosmographTooltip(e) {
+            const tooltip = document.getElementById('cosmograph-tooltip');
+            if (tooltip) {
+                tooltip.style.left = (e.pageX + 15) + 'px';
+                tooltip.style.top = (e.pageY - 10) + 'px';
+            }
+        }
+        
+        function hideCosmographTooltip() {
+            const tooltip = document.getElementById('cosmograph-tooltip');
+            if (tooltip) {
+                tooltip.remove();
+            }
+            document.removeEventListener('mousemove', positionCosmographTooltip);
+        }
+        
+        function setupCosmographControls() {
+            const fitBtn = document.getElementById('cosmo-fit-view');
+            const toggleBtn = document.getElementById('cosmo-toggle-simulation');
+            const resetBtn = document.getElementById('cosmo-reset-zoom');
+            
+            if (fitBtn) {
+                fitBtn.onclick = () => {
+                    if (cosmographInstance) {
+                        cosmographInstance.fitView();
+                    }
+                };
+            }
+            
+            if (toggleBtn) {
+                toggleBtn.onclick = () => {
+                    if (cosmographInstance) {
+                        if (cosmographSimulationPaused) {
+                            cosmographInstance.start();
+                            toggleBtn.innerHTML = '⏸️ Pause';
+                            toggleBtn.classList.remove('active');
+                        } else {
+                            cosmographInstance.pause();
+                            toggleBtn.innerHTML = '▶️ Resume';
+                            toggleBtn.classList.add('active');
+                        }
+                        cosmographSimulationPaused = !cosmographSimulationPaused;
+                    }
+                };
+            }
+            
+            if (resetBtn) {
+                resetBtn.onclick = () => {
+                    if (cosmographInstance) {
+                        cosmographInstance.setZoom(1);
+                        cosmographInstance.fitView();
+                    }
+                };
+            }
+        }
+        
+        // ============================================================================
+        // END COSMOGRAPH SECTION
+        // ============================================================================
+
         function updateShapeLegend(shapeMap, usedPatchTypes, usedIslands = [], islandColorScale = null) {
             const legendContainer = d3.select("#shape-legend");
             legendContainer.selectAll(".shape-legend-item").remove(); // Clear previous items
@@ -4363,7 +5969,7 @@ ${'='.repeat(80)}
                     x: node.generation,
                     y: node.combined_score,
                     id: node.id,
-                    agent_name: node.metadata.patch_name || 'unnamed'
+                    agent_name: (node.metadata && node.metadata.patch_name) || node.patch_name || 'unnamed'
                 }));
             }
 
@@ -4555,7 +6161,7 @@ ${'='.repeat(80)}
             bestScoreEl.textContent = typeof bestScore === 'number' ? bestScore.toFixed(6) : bestScore;
             bestScoreEl.className = typeof bestScore === 'number' ? 'metric-good' : '';
             
-            const bestAgentName = bestAgent ? (bestAgent.metadata.patch_name || 'unnamed') : 'N/A';
+            const bestAgentName = bestAgent ? ((bestAgent.metadata && bestAgent.metadata.patch_name) || bestAgent.patch_name || 'unnamed') : 'N/A';
             document.getElementById('meta-best-agent-name').textContent = bestAgentName;
             document.getElementById('meta-best-agent-gen').textContent = bestAgent ? bestAgent.generation : 'N/A';
             document.getElementById('meta-best-agent-island').textContent = bestAgent ? bestAgent.island_idx : 'N/A';
@@ -4571,14 +6177,15 @@ ${'='.repeat(80)}
         }
 
         // Display node details in the right panel
-        function displayNodeDetails(data) {
-            console.log("[DEBUG] Displaying node details for:", data.agent_name, "Gen:", data.generation, "ID:", data.id);
+        // Now fetches full details on demand if not already cached
+        async function displayNodeDetails(summaryData) {
+            console.log("[DEBUG] Displaying node details for:", summaryData.patch_name || summaryData.agent_name, "Gen:", summaryData.generation, "ID:", summaryData.id);
             
             // Sync selection in the program table
             const tableBody = document.querySelector("#program-table tbody");
             if (tableBody) {
                 tableBody.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
-                const row = tableBody.querySelector(`tr[data-node-id="${data.id}"]`);
+                const row = tableBody.querySelector(`tr[data-node-id="${summaryData.id}"]`);
                 if (row) {
                     row.classList.add('selected');
                 }
@@ -4588,7 +6195,7 @@ ${'='.repeat(80)}
             const bestPathContainer = document.querySelector("#best-path-container");
             if (bestPathContainer) {
                 bestPathContainer.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('selected'));
-                const item = bestPathContainer.querySelector(`.timeline-item[data-node-id="${data.id}"]`);
+                const item = bestPathContainer.querySelector(`.timeline-item[data-node-id="${summaryData.id}"]`);
                 if (item) {
                     item.classList.add('selected');
                 }
@@ -4597,22 +6204,56 @@ ${'='.repeat(80)}
             // Save state when node is selected
             saveState();
             
-            const agentName = data.metadata.patch_name || data.agent_name || "unnamed_agent";
-            const score = data.combined_score;
+            // Show loading indicator while fetching full details
+            const agentName = summaryData.patch_name || summaryData.agent_name || "unnamed_agent";
+            const score = summaryData.combined_score;
             
-            // Update node summary
+            // Update node summary with basic info immediately
             document.getElementById("node-summary").innerHTML = `
-                <h3>${agentName} (Gen ${data.generation})</h3>
-                <p><strong>ID:</strong> <span style="font-family: monospace;">${data.id}</span></p>
-                <p><strong>Parent ID:</strong> <span style="font-family: monospace;">${data.parent_id || 'None'}</span></p>
+                <h3>${agentName} (Gen ${summaryData.generation})</h3>
+                <p><strong>ID:</strong> <span style="font-family: monospace;">${summaryData.id}</span></p>
+                <p><strong>Parent ID:</strong> <span style="font-family: monospace;">${summaryData.parent_id || 'None'}</span></p>
                 <p><strong>Score:</strong> <span class="${getScoreClass(score)}">${formatScore(score)}</span></p>
-                ${data.error ? `<p><strong>Error:</strong> <span class="metric-bad">${data.error}</span></p>` : ''}
             `;
             
-
+            // Show loading state for details
+            const nodeDetailsContainer = document.getElementById('node-details');
+            const codeViewContainer = document.getElementById('agent-code-view');
+            const diffViewContainer = document.getElementById('diff-view');
+            
+            if (nodeDetailsContainer) {
+                nodeDetailsContainer.innerHTML = '<p style="color: #666;">Loading details...</p>';
+            }
+            if (codeViewContainer) {
+                codeViewContainer.innerHTML = '<p style="color: #666;">Loading code...</p>';
+            }
+            
+            // Fetch full details on demand
+            const data = await fetchProgramDetails(summaryData.id);
+            if (!data) {
+                if (nodeDetailsContainer) {
+                    nodeDetailsContainer.innerHTML = '<p style="color: #c00;">Failed to load program details</p>';
+                }
+                return;
+            }
+            
+            // Merge summary data with full details for backward compatibility
+            Object.assign(data, {
+                patch_name: summaryData.patch_name,
+                agent_name: summaryData.patch_name || data.metadata?.patch_name || 'unnamed_agent'
+            });
+            
+            // Now display the full details
+            displayNodeDetailsInternal(data);
+        }
+        
+        // Internal function that displays the full details (called after fetch)
+        function displayNodeDetailsInternal(data) {
+            const agentName = data.metadata?.patch_name || data.agent_name || "unnamed_agent";
+            const score = data.combined_score;
 
             // Update charts in Meta Info tab to highlight this generation
-            if (document.querySelector('.tab[data-tab="agent-info"]').classList.contains('active') && !window.isResizing) {
+            if (document.querySelector('.tab[data-tab="agent-info"]')?.classList.contains('active') && !window.isResizing) {
                 createCharts(data.generation);
             }
 
@@ -4720,6 +6361,17 @@ ${'='.repeat(80)}
                     <div class="details-section">
                         <h5>Performance Score</h5>
                         <p><strong>Combined Score:</strong> ${formatScore(data.combined_score)}</p>
+                        ${data.objective_function_used ? `
+                            <p><strong>Objective Function:</strong> <code style="background: #e9ecef; padding: 2px 6px; border-radius: 3px; font-size: 0.9em;">${escapeHtml(data.objective_function_used)}</code></p>
+                        ` : ''}
+                        ${(data.raw_ppl_score !== null && data.raw_ppl_score !== undefined) ? `
+                            <div style="margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #17a2b8;">
+                                <p style="margin: 0 0 5px 0; font-size: 0.85em; color: #6c757d;"><strong>Raw Metrics:</strong></p>
+                                <p style="margin: 2px 0;"><strong>ppl_score:</strong> ${formatScore(data.raw_ppl_score)}</p>
+                                <p style="margin: 2px 0;"><strong>code_size:</strong> ${data.raw_code_size || 'N/A'} bytes</p>
+                                <p style="margin: 2px 0;"><strong>exec_time:</strong> ${data.raw_exec_time ? data.raw_exec_time.toFixed(2) + 's' : 'N/A'}</p>
+                            </div>
+                        ` : ''}
                     </div>
                     <div class="details-section">
                         <h5>Public Metrics</h5>
@@ -4746,6 +6398,16 @@ ${'='.repeat(80)}
                     <div class="details-section">
                         <h5>Metadata</h5>
                         ${metadataHtml}
+                    </div>
+                    <div class="details-section">
+                        <h5>🎯 Preprompt Used</h5>
+                        ${data.preprompt ? `
+                            <div style="background-color: #e8f5e9; padding: 12px; border-radius: 5px; border-left: 4px solid #28a745; margin-top: 8px;">
+                                <pre style="white-space: pre-wrap; word-wrap: break-word; margin: 0; font-size: 13px; font-family: monospace;">${escapeHtml(data.preprompt)}</pre>
+                            </div>
+                        ` : `
+                            <p style="color: #666; font-style: italic;">No preprompt was used for this program.</p>
+                        `}
                     </div>
                     <div class="details-section">
                         <h5>Code Analysis</h5>
@@ -5644,7 +7306,7 @@ ${'='.repeat(80)}
             
             window.resizeTimeout = setTimeout(function() {
                 if (window.treeData) {
-                    renderGraph(window.treeData);
+                    renderCosmograph(window.treeData);
                 } else {
                     // Full reload only if necessary
                                     const resultSelect = document.getElementById('result-select');
@@ -5655,14 +7317,21 @@ ${'='.repeat(80)}
             }, 300);
         });
         
-        // Add specific panel resize handling to redraw the tree when panels are resized
+        // Add specific panel resize handling - just resize the canvas, don't recreate
+        let panelResizeTimeout = null;
         const observer = new ResizeObserver(() => {
-            console.log("[DEBUG] Panel resized");
-            const resultSelect = document.getElementById('result-select');
-            
-            if (resultSelect.value) {
-                loadDatabase(resultSelect.value);
+            // Debounce panel resize to prevent rapid updates
+            if (panelResizeTimeout) {
+                clearTimeout(panelResizeTimeout);
             }
+            panelResizeTimeout = setTimeout(() => {
+                console.log("[DEBUG] Panel resized - resizing Cosmograph canvas");
+                // Just resize the existing Cosmograph instance, don't recreate
+                if (cosmographInstance && cosmographInstance.resize) {
+                    cosmographInstance.resize();
+                    console.log("[DEBUG] Called cosmographInstance.resize()");
+                }
+            }, 200);
         });
         
         // Observe the tree panel for size changes
@@ -5690,7 +7359,7 @@ ${'='.repeat(80)}
             bestScoreEl.textContent = typeof bestScore === 'number' ? bestScore.toFixed(6) : bestScore;
             bestScoreEl.className = typeof bestScore === 'number' ? 'metric-good' : ''; // Adjust class if needed
             
-            document.getElementById('meta-best-agent-name').textContent = bestAgent ? (bestAgent.metadata.patch_name || 'unnamed') : 'N/A';
+            document.getElementById('meta-best-agent-name').textContent = bestAgent ? (bestAgent.metadata?.patch_name || bestAgent.agent_name || 'unnamed') : 'N/A';
             document.getElementById('meta-best-agent-gen').textContent = bestAgent ? bestAgent.generation : 'N/A';
 
             console.log("[DEBUG] Updated best solution panel with max score:", bestScore);
@@ -6025,13 +7694,15 @@ ${'='.repeat(80)}
                 const islandIdx = prog.island_idx !== null && prog.island_idx !== undefined ? prog.island_idx : 'N/A';
                 const archiveStatus = prog.in_archive ? '✓' : '';
                 const scoreDisplay = prog.combined_score !== null ? prog.combined_score.toFixed(6) : 'N/A';
+                const patchName = (prog.metadata && prog.metadata.patch_name) || prog.patch_name || 'unnamed';
+                const patchType = (prog.metadata && prog.metadata.patch_type) || prog.patch_type || 'N/A';
                 
                 row.innerHTML = `
                     <td>${prog.original_rank}</td>
                     <td>${prog.generation}</td>
                     <td style="text-align: center; color: ${prog.in_archive ? '#28a745' : '#6c757d'}; font-weight: bold;">${archiveStatus}</td>
-                    <td>${prog.metadata.patch_name || 'unnamed'}</td>
-                    <td>${prog.metadata.patch_type || 'N/A'}</td>
+                    <td>${patchName}</td>
+                    <td>${patchType}</td>
                     <td>${islandIdx}</td>
                     <td>${scoreDisplay}</td>
                     <td>${apiCost}</td>
@@ -6072,7 +7743,7 @@ ${'='.repeat(80)}
                 if (treeTab && !treeTab.classList.contains('active')) {
                     treeTab.click();
                 } else if (window.treeData) {
-                    renderGraph(window.treeData);
+                    renderCosmograph(window.treeData);
                 }
             } else {
                 // Don't switch tab, just show details
@@ -6222,8 +7893,11 @@ ${'='.repeat(80)}
                 console.log(`[DEBUG] Embeddings: Filtered out ${duplicateIds.size} duplicate generation 0 programs`);
             }
             
-            // Filter data with embeddings
-            const dataWithEmbeddings = filteredData.filter(d => d.embedding && Array.isArray(d.embedding) && d.embedding.length > 0);
+            // Filter data with embeddings (check for PCA embeddings, not full embedding which is excluded for performance)
+            const dataWithEmbeddings = filteredData.filter(d => 
+                (d.embedding_pca_2d && Array.isArray(d.embedding_pca_2d) && d.embedding_pca_2d.length >= 2) ||
+                (d.embedding_pca_3d && Array.isArray(d.embedding_pca_3d) && d.embedding_pca_3d.length >= 3)
+            );
             
             if (dataWithEmbeddings.length === 0) {
                 d3.select("#embeddings-heatmap")
@@ -6358,8 +8032,11 @@ ${'='.repeat(80)}
         function createSingleEmbeddingHeatmap(dataWithEmbeddings, container, title, bestNodeId, isSubplot = false) {
             
             // Extract embeddings and metadata
-            const embeddings = dataWithEmbeddings.map(d => d.embedding);
-            const labelsData = dataWithEmbeddings.map(d => ({ gen: d.generation, name: d.metadata.patch_name || 'unnamed' }));
+            const embeddings = dataWithEmbeddings.map(d => d.embedding_pca_2d || d.embedding || []);
+            const labelsData = dataWithEmbeddings.map(d => ({ 
+                gen: d.generation, 
+                name: (d.metadata && d.metadata.patch_name) || d.patch_name || 'unnamed' 
+            }));
             const nodeIds = dataWithEmbeddings.map(d => d.id);
             
             // Compute similarity matrix
@@ -6867,24 +8544,8 @@ ${'='.repeat(80)}
             try {
                 const urlParams = new URLSearchParams(window.location.search);
                 
-                // Restore database selection
-                const dbPath = urlParams.get('db_path');
-                if (dbPath) {
-                    // Parse the path to extract task and result
-                    const pathParts = dbPath.split('/');
-                    if (pathParts.length >= 3) {
-                        const task = pathParts[pathParts.length - 3];
-                        const taskSelect = document.getElementById('task-select');
-                        const resultSelect = document.getElementById('result-select');
-                        
-                        if (taskSelect && resultSelect) {
-                            taskSelect.value = task;
-                            populateResultSelect(task);
-                            resultSelect.value = dbPath;
-                            loadDatabase(dbPath);
-                        }
-                    }
-                }
+                // Database selection is handled by findDatabases() which auto-loads
+                // Here we just restore tabs and selected node if specified in URL
                 
                 // Restore left tab
                 const leftTab = urlParams.get('left_tab');
@@ -8053,11 +9714,11 @@ ${'='.repeat(80)}
             items.append("div")
                 .attr("class", "timeline-content")
                 .html(d => {
-                        const description = d.metadata.patch_description ? `<p><strong>Description:</strong> ${d.metadata.patch_description}</p>` : '';
+                        const description = d.metadata?.patch_description ? `<p><strong>Description:</strong> ${d.metadata.patch_description}</p>` : '';
                         return `
-                        <h4>Gen ${d.generation}: <span style="font-weight: normal;">${d.metadata.patch_name || 'unnamed'}</span></h4>
+                        <h4>Gen ${d.generation}: <span style="font-weight: normal;">${d.metadata?.patch_name || 'unnamed'}</span></h4>
                         <p><strong>ID:</strong> <a href="#" onclick="event.preventDefault(); event.stopPropagation(); selectNodeById('${d.id}', false, false);">${d.id}</a></p>
-                        <p><strong>Type:</strong> ${d.metadata.patch_type || 'N/A'}</p>
+                        <p><strong>Type:</strong> ${d.metadata?.patch_type || 'N/A'}</p>
                         <p><strong>Score:</strong> ${formatScore(d.combined_score)}</p>
                         ${description}
                         `;
@@ -8118,7 +9779,203 @@ ${'='.repeat(80)}
                 return;
             }
 
-            // Extract model_posteriors data from metadata - try multiple possible locations
+            // First, try to use model_name from the summary (lightweight)
+            const programsWithModelName = data.filter(d => d.model_name);
+            
+            // If we have model_name data, use it directly for counts
+            if (programsWithModelName.length > 0) {
+                console.log("[DEBUG] Using model_name field for model statistics");
+                
+                // Count programs by model and generation
+                const modelCounts = {};
+                const generationModelCounts = {};
+                
+                programsWithModelName.forEach(d => {
+                    const model = d.model_name;
+                    const gen = d.generation || 0;
+                    
+                    // Total counts
+                    modelCounts[model] = (modelCounts[model] || 0) + 1;
+                    
+                    // By generation
+                    if (!generationModelCounts[gen]) generationModelCounts[gen] = {};
+                    generationModelCounts[gen][model] = (generationModelCounts[gen][model] || 0) + 1;
+                });
+                
+                const models = Object.keys(modelCounts).sort();
+                const generations = Object.keys(generationModelCounts).map(Number).sort((a, b) => a - b);
+                
+                // Create bar chart for program counts
+                const countsContainer = container.select("#model-program-counts-chart");
+                countsContainer.html("");
+                
+                const countsData = models.map(model => ({
+                    model: model,
+                    count: modelCounts[model]
+                }));
+                
+                const chartWidth = Math.max(600, models.length * 150);
+                const chartHeight = 350;
+                const margin = { top: 20, right: 30, bottom: 120, left: 60 };
+                
+                const svg = countsContainer.append("svg")
+                    .attr("width", chartWidth)
+                    .attr("height", chartHeight);
+                
+                const x = d3.scaleBand()
+                    .domain(models)
+                    .range([margin.left, chartWidth - margin.right])
+                    .padding(0.3);
+                
+                const y = d3.scaleLinear()
+                    .domain([0, d3.max(countsData, d => d.count)])
+                    .nice()
+                    .range([chartHeight - margin.bottom, margin.top]);
+                
+                const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+                
+                svg.selectAll("rect")
+                    .data(countsData)
+                    .enter()
+                    .append("rect")
+                    .attr("x", d => x(d.model))
+                    .attr("y", d => y(d.count))
+                    .attr("width", x.bandwidth())
+                    .attr("height", d => y(0) - y(d.count))
+                    .attr("fill", d => colorScale(d.model));
+                
+                // Add value labels
+                svg.selectAll(".label")
+                    .data(countsData)
+                    .enter()
+                    .append("text")
+                    .attr("class", "label")
+                    .attr("x", d => x(d.model) + x.bandwidth() / 2)
+                    .attr("y", d => y(d.count) - 5)
+                    .attr("text-anchor", "middle")
+                    .style("font-size", "12px")
+                    .text(d => d.count);
+                
+                // X axis
+                svg.append("g")
+                    .attr("transform", `translate(0,${chartHeight - margin.bottom})`)
+                    .call(d3.axisBottom(x))
+                    .selectAll("text")
+                    .attr("transform", "rotate(-45)")
+                    .style("text-anchor", "end")
+                    .attr("dx", "-.8em")
+                    .attr("dy", ".15em");
+                
+                // Y axis
+                svg.append("g")
+                    .attr("transform", `translate(${margin.left},0)`)
+                    .call(d3.axisLeft(y));
+                
+                // Create line chart for model usage over generations
+                const chartContainer = container.select("#model-posteriors-chart");
+                chartContainer.html("");
+                
+                if (generations.length > 1) {
+                    const lineChartWidth = Math.max(600, generations.length * 30);
+                    const lineChartHeight = 350;
+                    
+                    const lineSvg = chartContainer.append("svg")
+                        .attr("width", lineChartWidth)
+                        .attr("height", lineChartHeight);
+                    
+                    const xLine = d3.scaleLinear()
+                        .domain([0, d3.max(generations)])
+                        .range([margin.left, lineChartWidth - margin.right]);
+                    
+                    const maxCount = d3.max(generations, gen => 
+                        d3.max(models, model => generationModelCounts[gen]?.[model] || 0)
+                    );
+                    
+                    const yLine = d3.scaleLinear()
+                        .domain([0, maxCount])
+                        .nice()
+                        .range([lineChartHeight - margin.bottom, margin.top]);
+                    
+                    // Draw lines for each model
+                    models.forEach(model => {
+                        const lineData = generations.map(gen => ({
+                            gen: gen,
+                            count: generationModelCounts[gen]?.[model] || 0
+                        }));
+                        
+                        const line = d3.line()
+                            .x(d => xLine(d.gen))
+                            .y(d => yLine(d.count));
+                        
+                        lineSvg.append("path")
+                            .datum(lineData)
+                            .attr("fill", "none")
+                            .attr("stroke", colorScale(model))
+                            .attr("stroke-width", 2)
+                            .attr("d", line);
+                        
+                        // Add dots
+                        lineSvg.selectAll(`.dot-${model.replace(/[^a-zA-Z0-9]/g, '')}`)
+                            .data(lineData)
+                            .enter()
+                            .append("circle")
+                            .attr("cx", d => xLine(d.gen))
+                            .attr("cy", d => yLine(d.count))
+                            .attr("r", 4)
+                            .attr("fill", colorScale(model));
+                    });
+                    
+                    // X axis
+                    lineSvg.append("g")
+                        .attr("transform", `translate(0,${lineChartHeight - margin.bottom})`)
+                        .call(d3.axisBottom(xLine).ticks(Math.min(generations.length, 20)));
+                    
+                    // Y axis
+                    lineSvg.append("g")
+                        .attr("transform", `translate(${margin.left},0)`)
+                        .call(d3.axisLeft(yLine));
+                    
+                    // X axis label
+                    lineSvg.append("text")
+                        .attr("x", lineChartWidth / 2)
+                        .attr("y", lineChartHeight - 10)
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "12px")
+                        .text("Generation");
+                    
+                    // Legend
+                    const legend = lineSvg.append("g")
+                        .attr("transform", `translate(${lineChartWidth - margin.right - 150}, ${margin.top})`);
+                    
+                    models.forEach((model, i) => {
+                        const g = legend.append("g")
+                            .attr("transform", `translate(0, ${i * 20})`);
+                        g.append("rect")
+                            .attr("width", 15)
+                            .attr("height", 15)
+                            .attr("fill", colorScale(model));
+                        g.append("text")
+                            .attr("x", 20)
+                            .attr("y", 12)
+                            .style("font-size", "11px")
+                            .text(model.length > 25 ? model.substring(0, 25) + '...' : model);
+                    });
+                } else {
+                    chartContainer.html("<p style='text-align: center; margin-top: 50px;'>Not enough generations to show trend.</p>");
+                }
+                
+                // Summary stats
+                const statsHtml = `
+                    <p><strong>Total programs with model info:</strong> ${programsWithModelName.length}</p>
+                    <p><strong>Models used:</strong> ${models.join(', ')}</p>
+                    <p><strong>Programs by model:</strong></p>
+                    <ul>${models.map(m => `<li>${m}: ${modelCounts[m]} programs</li>`).join('')}</ul>
+                `;
+                container.select("#model-posteriors-stats").html(statsHtml);
+                return;
+            }
+
+            // Fallback: Extract model_posteriors data from metadata - try multiple possible locations
             let programsWithPosteriors = data.filter(d => 
                 d.metadata && d.metadata.llm_result && d.metadata.llm_result.model_posteriors && 
                 typeof d.metadata.llm_result.model_posteriors === 'object' &&
@@ -8140,21 +9997,21 @@ ${'='.repeat(80)}
             if (programsWithPosteriors.length === 0) {
                 const programsWithLlmResult = data.filter(d => d.metadata && d.metadata.llm_result);
                 const debugInfo = `
-                    <p style='text-align: center; margin-top: 20px;'>No model posteriors data found in metadata.</p>
+                    <p style='text-align: center; margin-top: 20px;'>No model data found.</p>
                     <div style='background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin-top: 20px;'>
                         <h5>Debug Information:</h5>
                         <ul style='text-align: left;'>
                             <li>Total programs: ${data.length}</li>
+                            <li>Programs with model_name: ${data.filter(d => d.model_name).length}</li>
                             <li>Programs with llm_result: ${programsWithLlmResult.length}</li>
-                            <li>Programs with direct model_posteriors: ${data.filter(d => d.metadata && d.metadata.model_posteriors).length}</li>
                         </ul>
-                        <p><small>Check the browser console for more detailed debugging information.</small></p>
+                        <p><small>This visualization requires model information to be stored with each program.</small></p>
                     </div>
                 `;
                 container.select("#model-posteriors-chart").html(debugInfo);
-                container.select("#model-program-counts-chart").html("<p style='text-align: center; margin-top: 50px;'>No model posteriors data available for program counts chart.</p>");
-                container.select("#model-posteriors-stats").html("No model posteriors data available.");
-                console.log("[DEBUG] *** EARLY RETURN - NO POSTERIORS DATA ***");
+                container.select("#model-program-counts-chart").html("<p style='text-align: center; margin-top: 50px;'>No model data available.</p>");
+                container.select("#model-posteriors-stats").html("No model data available.");
+                console.log("[DEBUG] *** EARLY RETURN - NO MODEL DATA ***");
                 return;
             }
 
@@ -8163,36 +10020,7 @@ ${'='.repeat(80)}
             // Debug: Log first few programs to understand data structure
             if (data.length > 0) {
                 console.log("[DEBUG] Total programs:", data.length);
-                console.log("[DEBUG] Sample program metadata structure:", data[0].metadata);
-                
-                const programsWithLlmResult = data.filter(d => d.metadata && d.metadata.llm_result);
-                console.log(`[DEBUG] Programs with llm_result: ${programsWithLlmResult.length}`);
-                
-                if (programsWithLlmResult.length > 0) {
-                    console.log("[DEBUG] Sample llm_result:", programsWithLlmResult[0].metadata.llm_result);
-                    console.log("[DEBUG] Sample llm_result keys:", Object.keys(programsWithLlmResult[0].metadata.llm_result));
-                    
-                    if (programsWithLlmResult[0].metadata.llm_result.model_posteriors) {
-                        console.log("[DEBUG] Sample model_posteriors:", programsWithLlmResult[0].metadata.llm_result.model_posteriors);
-                        console.log("[DEBUG] Model_posteriors type:", typeof programsWithLlmResult[0].metadata.llm_result.model_posteriors);
-                        console.log("[DEBUG] Model_posteriors keys:", Object.keys(programsWithLlmResult[0].metadata.llm_result.model_posteriors));
-                    } else {
-                        console.log("[DEBUG] No model_posteriors in llm_result");
-                    }
-                }
-                
-                // Check if any programs have the exact structure we're looking for
-                const exactMatch = data.filter(d => 
-                    d.metadata && 
-                    d.metadata.llm_result && 
-                    d.metadata.llm_result.model_posteriors && 
-                    typeof d.metadata.llm_result.model_posteriors === 'object'
-                );
-                console.log(`[DEBUG] Programs with exact model_posteriors structure: ${exactMatch.length}`);
-                
-                // Also check for alternative structures
-                const altStructure1 = data.filter(d => d.metadata && d.metadata.model_posteriors);
-                console.log(`[DEBUG] Programs with direct metadata.model_posteriors: ${altStructure1.length}`);
+                console.log("[DEBUG] Sample program:", data[0]);
             }
 
             // Helper function to get model_posteriors from program data
@@ -8849,7 +10677,7 @@ ${'='.repeat(80)}
                 customdata: programsWithEmbeddings.map(p => p.id),
                 mode: 'markers',
                 type: 'scatter',
-                text: programsWithEmbeddings.map(p => `<b>${p.metadata.patch_name || 'unnamed'}</b><br>Score: ${formatScore(p.combined_score)}<br>Cluster: ${p.embedding_cluster_id}`),
+                text: programsWithEmbeddings.map(p => `<b>${(p.metadata && p.metadata.patch_name) || p.patch_name || 'unnamed'}</b><br>Score: ${formatScore(p.combined_score)}<br>Cluster: ${p.embedding_cluster_id}`),
                 hoverinfo: 'text',
                 marker: {
                     color: programsWithEmbeddings.map(p => p.embedding_cluster_id),
@@ -8896,7 +10724,7 @@ ${'='.repeat(80)}
                 customdata: programsWithEmbeddings.map(p => p.id),
                 mode: 'markers',
                 type: 'scatter3d',
-                text: programsWithEmbeddings.map(p => `<b>${p.metadata.patch_name || 'unnamed'}</b><br>Score: ${formatScore(p.combined_score)}<br>Cluster: ${p.embedding_cluster_id}`),
+                text: programsWithEmbeddings.map(p => `<b>${(p.metadata && p.metadata.patch_name) || p.patch_name || 'unnamed'}</b><br>Score: ${formatScore(p.combined_score)}<br>Cluster: ${p.embedding_cluster_id}`),
                 hoverinfo: 'text',
                 marker: {
                     color: programsWithEmbeddings.map(p => p.embedding_cluster_id),
@@ -9092,7 +10920,7 @@ ${'='.repeat(80)}
 
         // Helper function to build hover text showing only the active X and Y axis metrics
         function buildActiveMetricsHoverText(point, xMetric, yMetric) {
-            let hoverText = `<b>${point.metadata.patch_name || 'unnamed'}</b><br>`;
+            let hoverText = `<b>${point.metadata?.patch_name || point.agent_name || 'unnamed'}</b><br>`;
             hoverText += `Combined Score: ${formatScore(point.combined_score)}<br>`;
             
             // Show X-axis metric

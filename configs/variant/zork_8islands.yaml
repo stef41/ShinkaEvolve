@@ -4,15 +4,22 @@ variant_suffix: "_8islands"
 
 verbose: true
 
-# 8 islands for maximum diversity
+# 2 islands with PostgreSQL
 db_config:
-  num_islands: 8
+  backend: "postgres"
+  pg_host: "localhost"
+  pg_port: 5433
+  pg_database: "shinka"
+  pg_user: "shinka"
+  pg_password: "shinka_dev"
+  num_islands: 2
   archive_size: 50
 
-# Run indefinitely with 8 parallel jobs using DUAL LLM endpoints
+# Run indefinitely with 2 parallel jobs
 evo_config:
   num_generations: 1000000  # Infinite until manually stopped
-  max_parallel_jobs: 8  # 8 jobs shared across 2 LLM servers (4 per server avg)
+  max_parallel_jobs: 2  # 2 parallel jobs
   init_program_path: examples/zork/best_gen745.py  # Start with best solution (35 points)
+  embedding_model: "local:all-MiniLM-L6-v2"  # Use local sentence-transformers model
   llm_models:
     - openai/gpt-oss-120b@http://localhost:8000/v1

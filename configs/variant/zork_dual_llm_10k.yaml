@@ -1,0 +1,27 @@
+# Zork evolution with dual LLM endpoints (local + Voltage Park) and local embeddings
+# 10,000 iterations using PostgreSQL backend
+
+variant_suffix: "_dual_llm_10k"
+
+verbose: true
+
+# 8 islands for diversity - using PostgreSQL backend
+db_config:
+  num_islands: 8
+  archive_size: 50
+  backend: postgres
+  pg_host: localhost
+  pg_port: 5433
+  pg_database: shinka
+  pg_user: shinka
+  pg_password: shinka_dev
+  pg_use_pgvector: true
+
+# Run 10,000 iterations with 8 parallel jobs using local LLM endpoint
+evo_config:
+  num_generations: 10000
+  max_parallel_jobs: 8
+  init_program_path: examples/zork/best_gen745.py  # Start with best solution (35 points)
+  llm_models:
+    - openai/gpt-oss-120b@http://localhost:8000/v1
+  embedding_model: "local:all-MiniLM-L6-v2"  # Local embedding model

@@ -43,10 +43,10 @@ db_cache: Dict[str, Tuple[float, Any]] = {}
 # Default PostgreSQL configuration
 DEFAULT_PG_CONFIG = {
     "host": os.environ.get("SHINKA_PG_HOST", "localhost"),
-    "port": int(os.environ.get("SHINKA_PG_PORT", "5432")),
+    "port": int(os.environ.get("SHINKA_PG_PORT", "5433")),
     "database": os.environ.get("SHINKA_PG_DATABASE", "shinka"),
-    "user": os.environ.get("SHINKA_PG_USER", "postgres"),
-    "password": os.environ.get("SHINKA_PG_PASSWORD", ""),
+    "user": os.environ.get("SHINKA_PG_USER", "shinka"),
+    "password": os.environ.get("SHINKA_PG_PASSWORD", "shinka_dev"),
 }
 
 
@@ -163,6 +163,16 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
                 top_k=top_k
             )
 
+        # Lightweight endpoint for tree rendering - returns minimal fields
+        if path == "/get_programs_summary":
+            run_id = query.get("run_id", query.get("db_path", [None]))[0]
+            return self.handle_get_programs_summary(run_id)
+
+        # Full details for a single program - fetched on demand when node is selected
+        if path == "/get_program_details":
+            program_id = query.get("id", [None])[0]
+            return self.handle_get_program_details(program_id)
+
         if path == "/get_meta_files":
             run_id = query.get("run_id", query.get("db_path", [None]))[0]
             return self.handle_get_meta_files(run_id)
@@ -181,8 +191,339 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
             print("[SERVER] Root path requested, serving viz_tree.html")
             self.path = "/viz_tree.html"
 
+        # Handle objective function GET
+        if path == "/api/objective_function":
+            run_id = query.get("run_id", [None])[0]
+            return self.handle_get_objective_function(run_id)
+
+        # Handle preprompt GET
+        if path == "/api/preprompt":
+            run_id = query.get("run_id", [None])[0]
+            return self.handle_get_preprompt(run_id)
+
+        # Handle focus_node GET
+        if path == "/api/focus_node":
+            run_id = query.get("run_id", [None])[0]
+            return self.handle_get_focus_node(run_id)
+
         # Serve static files from the webui directory
         return http.server.SimpleHTTPRequestHandler.do_GET(self)
+
+    def do_POST(self):
+        """Handle POST requests for modifying evolution state."""
+        print(f"\n[SERVER] Received POST request for: {self.path}")
+        parsed_url = urllib.parse.urlparse(self.path)
+        path = parsed_url.path
+        
+        # Read POST body
+        content_length = int(self.headers.get('Content-Length', 0))
+        post_body = self.rfile.read(content_length).decode('utf-8') if content_length > 0 else "{}"
+        
+        try:
+            post_data = json.loads(post_body)
+        except json.JSONDecodeError:
+            self._send_json_response({"error": "Invalid JSON"}, status_code=400)
+            return
+        
+        if path == "/api/objective_function":
+            return self.handle_set_objective_function(post_data)
+        
+        if path == "/api/preprompt":
+            return self.handle_set_preprompt(post_data)
+        
+        if path == "/api/focus_node":
+            return self.handle_set_focus_node(post_data)
+        
+        # Unknown endpoint
+        self._send_json_response({"error": "Unknown endpoint"}, status_code=404)
+
+    def handle_get_objective_function(self, run_id: Optional[str]):
+        """Get the current objective function expression."""
+        print(f"[SERVER] Getting objective function for run: {run_id}")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Get current objective function from metadata_store
+            cursor.execute(
+                "SELECT value FROM metadata_store WHERE key = 'objective_function'"
+            )
+            row = cursor.fetchone()
+            
+            expression = row["value"] if row else "ppl_score"
+            
+            # Check if raw_ppl_score column exists
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'programs' AND column_name = 'raw_ppl_score'
+            """)
+            has_raw_columns = cursor.fetchone() is not None
+            
+            samples = []
+            if has_raw_columns:
+                # Get sample raw metrics for preview
+                cursor.execute("""
+                    SELECT raw_ppl_score, raw_code_size, raw_exec_time
+                    FROM programs
+                    WHERE raw_ppl_score IS NOT NULL
+                    ORDER BY combined_score DESC
+                    LIMIT 5
+                """)
+                samples = cursor.fetchall()
+            
+            self._send_json_response({
+                "expression": expression,
+                "samples": [dict(s) for s in samples],
+                "has_raw_columns": has_raw_columns
+            })
+            
+        except Exception as e:
+            print(f"[SERVER] Error getting objective function: {e}")
+            self._send_json_response({"error": str(e)}, status_code=500)
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
+    def handle_set_objective_function(self, data: Dict[str, Any]):
+        """Set a new objective function and recalculate all scores."""
+        expression = data.get("expression", "").strip()
+        
+        if not expression:
+            self._send_json_response({"error": "Expression is required"}, status_code=400)
+            return
+        
+        print(f"[SERVER] Setting objective function: {expression}")
+        
+        # Validate expression with sample values
+        try:
+            test_vars = {"ppl_score": 100.0, "code_size": 1000, "exec_time": 1.0}
+            eval(expression, {"__builtins__": {}}, test_vars)
+        except Exception as e:
+            self._send_json_response({
+                "error": f"Invalid expression: {e}"
+            }, status_code=400)
+            return
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Check if raw_ppl_score column exists
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'programs' AND column_name = 'raw_ppl_score'
+            """)
+            has_raw_columns = cursor.fetchone() is not None
+            
+            if not has_raw_columns:
+                self._send_json_response({
+                    "error": "Database does not have raw metric columns. Please run migration first.",
+                    "has_raw_columns": False
+                }, status_code=400)
+                return
+            
+            # Store the expression
+            cursor.execute("""
+                INSERT INTO metadata_store (key, value) 
+                VALUES ('objective_function', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (expression,))
+            
+            # Recalculate all scores
+            cursor.execute("""
+                SELECT id, raw_ppl_score, raw_code_size, raw_exec_time 
+                FROM programs 
+                WHERE raw_ppl_score IS NOT NULL
+            """)
+            rows = cursor.fetchall()
+            
+            updated = 0
+            for row in rows:
+                try:
+                    ppl_score = float(row["raw_ppl_score"]) if row["raw_ppl_score"] else 0.0
+                    code_size = int(row["raw_code_size"]) if row["raw_code_size"] else 0
+                    exec_time = float(row["raw_exec_time"]) if row["raw_exec_time"] else 0.0
+                    
+                    local_vars = {
+                        "ppl_score": ppl_score,
+                        "code_size": code_size,
+                        "exec_time": exec_time,
+                    }
+                    new_score = eval(expression, {"__builtins__": {}}, local_vars)
+                    
+                    cursor.execute(
+                        "UPDATE programs SET combined_score = %s WHERE id = %s",
+                        (float(new_score), row["id"])
+                    )
+                    updated += 1
+                except Exception as e:
+                    print(f"[SERVER] Failed to recalculate for {row['id']}: {e}")
+            
+            conn.commit()
+            
+            self._send_json_response({
+                "success": True,
+                "expression": expression,
+                "programs_updated": updated
+            })
+            
+        except Exception as e:
+            print(f"[SERVER] Error setting objective function: {e}")
+            if conn:
+                conn.rollback()
+            self._send_json_response({"error": str(e)}, status_code=500)
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
+    def handle_get_preprompt(self, run_id: Optional[str]):
+        """Get the current preprompt for LLM generation."""
+        print(f"[SERVER] Getting preprompt for run: {run_id}")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Get current preprompt from metadata_store
+            cursor.execute(
+                "SELECT value FROM metadata_store WHERE key = 'preprompt'"
+            )
+            row = cursor.fetchone()
+            
+            preprompt = row["value"] if row else ""
+            
+            self._send_json_response({
+                "preprompt": preprompt
+            })
+            
+        except Exception as e:
+            print(f"[SERVER] Error getting preprompt: {e}")
+            self._send_json_response({"error": str(e)}, status_code=500)
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
+    def handle_set_preprompt(self, data: Dict[str, Any]):
+        """Set a new preprompt for LLM generation."""
+        preprompt = data.get("preprompt", "").strip()
+        
+        print(f"[SERVER] Setting preprompt: {preprompt[:100]}...")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Store the preprompt
+            cursor.execute("""
+                INSERT INTO metadata_store (key, value) 
+                VALUES ('preprompt', %s)
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+            """, (preprompt,))
+            
+            conn.commit()
+            
+            self._send_json_response({
+                "success": True,
+                "preprompt": preprompt
+            })
+            
+        except Exception as e:
+            print(f"[SERVER] Error setting preprompt: {e}")
+            if conn:
+                conn.rollback()
+            self._send_json_response({"error": str(e)}, status_code=500)
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
+    def handle_get_focus_node(self, run_id: Optional[str]):
+        """Get the current focus node for mutations (subtree focus)."""
+        print(f"[SERVER] Getting focus node for run: {run_id}")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Get current focus node from metadata_store
+            cursor.execute(
+                "SELECT value FROM metadata_store WHERE key = 'focus_node'"
+            )
+            row = cursor.fetchone()
+            
+            focus_node_id = row["value"] if row else None
+            
+            # If we have a focus node, get its details
+            node_info = None
+            if focus_node_id:
+                cursor.execute("""
+                    SELECT id, metadata->>'patch_name' as agent_name, combined_score, generation
+                    FROM programs
+                    WHERE id = %s
+                """, (focus_node_id,))
+                node_row = cursor.fetchone()
+                if node_row:
+                    node_info = dict(node_row)
+            
+            self._send_json_response({
+                "focus_node_id": focus_node_id,
+                "node_info": node_info
+            })
+            
+        except Exception as e:
+            print(f"[SERVER] Error getting focus node: {e}")
+            self._send_json_response({"error": str(e)}, status_code=500)
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
+    def handle_set_focus_node(self, data: Dict[str, Any]):
+        """Set the focus node for mutations (subtree focus)."""
+        focus_node_id = data.get("focus_node_id", None)
+        
+        if focus_node_id:
+            print(f"[SERVER] Setting focus node: {focus_node_id[:8]}...")
+        else:
+            print(f"[SERVER] Clearing focus node")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            if focus_node_id:
+                # Store the focus node
+                cursor.execute("""
+                    INSERT INTO metadata_store (key, value) 
+                    VALUES ('focus_node', %s)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                """, (focus_node_id,))
+            else:
+                # Clear the focus node
+                cursor.execute("""
+                    DELETE FROM metadata_store WHERE key = 'focus_node'
+                """)
+            
+            conn.commit()
+            
+            self._send_json_response({
+                "success": True,
+                "focus_node_id": focus_node_id
+            })
+            
+        except Exception as e:
+            print(f"[SERVER] Error setting focus node: {e}")
+            if conn:
+                conn.rollback()
+            self._send_json_response({"error": str(e)}, status_code=500)
+        finally:
+            if conn:
+                self._return_db_connection(conn)
 
     def handle_list_databases(self):
         """List available evolution runs from PostgreSQL metadata table.
@@ -197,6 +538,19 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
         try:
             conn = self._get_db_connection()
             cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # First, try to get run_id and task_name from metadata_store
+            stored_run_id = None
+            stored_task_name = None
+            try:
+                cursor.execute("SELECT key, value FROM metadata_store WHERE key IN ('run_id', 'task_name')")
+                for row in cursor.fetchall():
+                    if row["key"] == "run_id":
+                        stored_run_id = row["value"]
+                    elif row["key"] == "task_name":
+                        stored_task_name = row["value"]
+            except Exception as e:
+                print(f"[SERVER] Could not read metadata_store: {e}")
             
             # Query the runs or metadata table for available evolution runs
             cursor.execute("""
@@ -214,8 +568,9 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
             
             runs = []
             for row in cursor.fetchall():
-                run_id = row["run_id"] or "default"
-                task_name = row["task_name"] or "unknown"
+                # Use stored values from metadata_store if program metadata is missing
+                run_id = row["run_id"] if row["run_id"] != "default" else (stored_run_id or "default")
+                task_name = row["task_name"] if row["task_name"] != "unknown" else (stored_task_name or "unknown")
                 # Create a path that looks like the SQLite paths for frontend compatibility
                 # Format: task_name/run_id/evolution_db
                 path = f"{task_name}/{run_id}/evolution_db"
@@ -240,11 +595,13 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
                 cursor.execute("SELECT COUNT(*) as count FROM programs")
                 count = cursor.fetchone()["count"]
                 if count > 0:
+                    run_id = stored_run_id or "default"
+                    task_name = stored_task_name or "unknown"
                     runs = [{
-                        "path": "unknown/default/evolution_db",
-                        "name": "Default Run",
-                        "run_id": "default",
-                        "task_name": "unknown",
+                        "path": f"{task_name}/{run_id}/evolution_db",
+                        "name": f"{task_name} - {run_id[:16] if len(run_id) > 16 else run_id}",
+                        "run_id": run_id,
+                        "task_name": task_name,
                         "program_count": count,
                     }]
             
@@ -415,6 +772,115 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
             if conn:
                 self._return_db_connection(conn)
 
+    def handle_get_programs_summary(self, run_id: Optional[str]):
+        """Lightweight endpoint returning only fields needed for tree rendering.
+        
+        This dramatically reduces payload size for initial load:
+        - Full response: ~3.6MB for 275 programs
+        - Summary response: ~100KB for 275 programs (35x smaller)
+        """
+        run_id = self._parse_run_id(run_id)
+        print(f"[SERVER] Fetching programs summary (run_id={run_id})")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Build WHERE clause
+            where_sql = ""
+            params = []
+            if run_id and run_id != "default":
+                where_sql = "WHERE p.metadata->>'run_id' = %s"
+                params.append(run_id)
+            
+            # Only fetch fields needed for tree rendering
+            query = f"""
+                SELECT p.id, p.parent_id, p.generation, p.timestamp,
+                       p.combined_score, p.correct, p.island_idx,
+                       p.embedding_pca_2d, p.embedding_pca_3d, p.embedding_cluster_id,
+                       p.metadata->>'patch_name' as patch_name,
+                       p.metadata->'llm_result'->>'model_name' as model_name,
+                       CASE WHEN a.program_id IS NOT NULL THEN true ELSE false END as in_archive
+                FROM programs p
+                LEFT JOIN archive a ON p.id = a.program_id
+                {where_sql}
+                ORDER BY p.generation, p.timestamp
+            """
+            
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            # Convert to lightweight dicts
+            programs = []
+            for row in rows:
+                programs.append({
+                    'id': row['id'],
+                    'parent_id': row['parent_id'],
+                    'generation': row['generation'],
+                    'timestamp': row['timestamp'],
+                    'combined_score': row['combined_score'],
+                    'correct': row['correct'] or False,
+                    'island_idx': row['island_idx'],
+                    'embedding_pca_2d': row['embedding_pca_2d'] or [],
+                    'embedding_pca_3d': row['embedding_pca_3d'] or [],
+                    'embedding_cluster_id': row['embedding_cluster_id'],
+                    'patch_name': row['patch_name'],
+                    'model_name': row['model_name'],
+                    'in_archive': row['in_archive'] or False,
+                })
+            
+            self.send_json_response(programs)
+            print(f"[SERVER] Served {len(programs)} program summaries")
+            
+        except psycopg2.Error as e:
+            print(f"[SERVER] Database error: {e}")
+            self.send_error(500, f"Database error: {str(e)}")
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
+    def handle_get_program_details(self, program_id: Optional[str]):
+        """Fetch full details for a single program - called when node is selected."""
+        if not program_id:
+            self.send_error(400, "Missing program id parameter")
+            return
+        
+        print(f"[SERVER] Fetching program details for: {program_id[:20]}...")
+        
+        conn = None
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Fetch all fields for this single program
+            query = """
+                SELECT p.*, 
+                       CASE WHEN a.program_id IS NOT NULL THEN true ELSE false END as in_archive
+                FROM programs p
+                LEFT JOIN archive a ON p.id = a.program_id
+                WHERE p.id = %s
+            """
+            
+            cursor.execute(query, (program_id,))
+            row = cursor.fetchone()
+            
+            if not row:
+                self.send_error(404, f"Program not found: {program_id}")
+                return
+            
+            # Convert to dict - include full metadata for single program details
+            program = self._row_to_dict(row, include_full_metadata=True)
+            self.send_json_response(program)
+            print(f"[SERVER] Served details for program {program_id[:20]}...")
+            
+        except psycopg2.Error as e:
+            print(f"[SERVER] Database error: {e}")
+            self.send_error(500, f"Database error: {str(e)}")
+        finally:
+            if conn:
+                self._return_db_connection(conn)
+
     def _get_programs_filtered_pg(
         self,
         conn,
@@ -448,9 +914,16 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
         cursor.execute(count_query, params)
         total_count = cursor.fetchone()["count"]
         
-        # Get programs with archive info
+        # Get programs with archive info - exclude large embedding column for performance
+        # The visualization UI uses embedding_pca_2d/3d for display, not the full embedding
         query = f"""
-            SELECT p.*,
+            SELECT p.id, p.code, p.language, p.parent_id, p.archive_inspiration_ids,
+                   p.top_k_inspiration_ids, p.generation, p.timestamp, p.code_diff,
+                   p.combined_score, p.public_metrics, p.private_metrics,
+                   p.text_feedback, p.complexity, p.embedding_pca_2d, p.embedding_pca_3d,
+                   p.embedding_cluster_id, p.correct, p.children_count, p.metadata,
+                   p.island_idx, p.migration_history, p.raw_ppl_score, p.raw_code_size,
+                   p.raw_exec_time, p.objective_function_used, p.preprompt,
                    CASE WHEN a.program_id IS NOT NULL THEN true ELSE false END as in_archive
             FROM programs p
             LEFT JOIN archive a ON p.id = a.program_id
@@ -577,8 +1050,14 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
         print(f"[SERVER] top_k={top_k}: Returning {len(programs_dict)} programs on paths")
         return programs_dict, total_count
 
-    def _row_to_dict(self, row: Dict) -> Optional[Dict]:
-        """Convert a PostgreSQL RealDictCursor row to Program dict format."""
+    def _row_to_dict(self, row: Dict, include_full_metadata: bool = False) -> Optional[Dict]:
+        """Convert a PostgreSQL RealDictCursor row to Program dict format.
+        
+        Args:
+            row: Database row to convert
+            include_full_metadata: If True, include llm_result and other large fields in metadata.
+                                   Set to True when fetching single program details.
+        """
         try:
             # PostgreSQL returns JSONB as dicts/lists directly
             def ensure_list(val):
@@ -605,6 +1084,17 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
                         return {}
                 return {}
             
+            # Strip large fields from metadata to reduce response size (for list views)
+            # llm_result can be 20KB+ per program
+            raw_metadata = ensure_dict(row.get('metadata'))
+            if include_full_metadata:
+                # For single program details, include everything
+                stripped_metadata = raw_metadata
+            else:
+                # For list views, strip large fields for performance
+                stripped_metadata = {k: v for k, v in raw_metadata.items() 
+                                   if k not in ('llm_result', 'stdout_log', 'stderr_log', 'new_msg_history')}
+            
             prog_dict = {
                 'id': row['id'],
                 'code': row['code'],
@@ -623,13 +1113,20 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
                 'correct': row.get('correct', False),
                 'children_count': row.get('children_count', 0),
                 'complexity': row.get('complexity'),
-                'embedding': ensure_list(row.get('embedding')),
+                'embedding': [],  # Excluded from query for performance - use embedding_pca_* for viz
                 'embedding_pca_2d': ensure_list(row.get('embedding_pca_2d')),
                 'embedding_pca_3d': ensure_list(row.get('embedding_pca_3d')),
                 'embedding_cluster_id': row.get('embedding_cluster_id'),
                 'migration_history': ensure_list(row.get('migration_history')),
-                'metadata': ensure_dict(row.get('metadata')),
+                'metadata': stripped_metadata,  # Stripped of large fields for performance
                 'in_archive': row.get('in_archive', False),
+                # Raw metrics for dynamic objective function
+                'raw_ppl_score': row.get('raw_ppl_score'),
+                'raw_code_size': row.get('raw_code_size'),
+                'raw_exec_time': row.get('raw_exec_time'),
+                'objective_function_used': row.get('objective_function_used'),
+                # Preprompt used for LLM generation
+                'preprompt': row.get('preprompt'),
             }
             return prog_dict
         except Exception as e:
@@ -655,16 +1152,20 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
         print(f"[SERVER] Meta PDF not implemented for PostgreSQL-only mode")
         self.send_error(501, "Meta PDF access not implemented for PostgreSQL mode")
 
-    def send_json_response(self, data):
+    def send_json_response(self, data, status_code: int = 200):
         """Helper to send a JSON response."""
         payload = json.dumps(data, default=self._json_encoder).encode("utf-8")
-        self.send_response(200)
+        self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
+    
+    def _send_json_response(self, data, status_code: int = 200):
+        """Alias for send_json_response with status_code support."""
+        return self.send_json_response(data, status_code)
 
     def _json_encoder(self, obj):
         """Custom JSON encoder to handle NaN and Inf values."""

@@ -68,6 +68,10 @@ class DatabaseConfig:
     pg_max_connections: int = 10
     pg_use_pgvector: bool = True
     
+    # Run identification (for visualization/tracking)
+    run_id: Optional[str] = None  # Unique identifier for this run
+    task_name: Optional[str] = None  # Task name (e.g., "zork", "circle_packing")
+    
     # Island configuration
     num_islands: int = 4
     archive_size: int = 100
@@ -210,6 +214,18 @@ class Program:
     text_feedback: Union[str, List[str]] = ""
     correct: bool = False  # Whether the program is functionally correct
     children_count: int = 0
+    
+    # Raw metrics for dynamic objective function
+    # These are stored separately for on-the-fly score recalculation
+    raw_ppl_score: Optional[float] = None  # PPL/primary performance score
+    raw_code_size: Optional[int] = None    # Code size in bytes
+    raw_exec_time: Optional[float] = None  # Execution time in seconds
+    
+    # Track which objective function was used when this program was scored
+    objective_function_used: Optional[str] = None  # e.g., "ppl_score - 0.01 * code_size"
+
+    # Preprompt used for LLM generation of this program
+    preprompt: Optional[str] = None  # Custom preprompt injected into LLM generation
 
     # Derived features
     complexity: float = 0.0  # Calculated based on code or other features
@@ -431,7 +447,12 @@ class ProgramDatabase:
                     children_count INTEGER NOT NULL DEFAULT 0,
                     metadata TEXT,
                     migration_history TEXT,
-                    island_idx INTEGER
+                    island_idx INTEGER,
+                    raw_ppl_score REAL,
+                    raw_code_size INTEGER,
+                    raw_exec_time REAL,
+                    objective_function_used TEXT,
+                    preprompt TEXT
                 )
             """
         else:  # PostgreSQL
@@ -459,7 +480,12 @@ class ProgramDatabase:
                     children_count INTEGER NOT NULL DEFAULT 0,
                     metadata JSONB,
                     migration_history JSONB,
-                    island_idx INTEGER
+                    island_idx INTEGER,
+                    raw_ppl_score DOUBLE PRECISION,
+                    raw_code_size INTEGER,
+                    raw_exec_time DOUBLE PRECISION,
+                    objective_function_used TEXT,
+                    preprompt TEXT
                 )
             """
         
@@ -520,6 +546,42 @@ class ProgramDatabase:
             logger.error(f"Error during text_feedback migration: {e}")
             # Don't raise - this is not critical for existing functionality
 
+        # Migration 2: Add raw metrics columns for dynamic objective function
+        raw_metric_columns = [
+            ("raw_ppl_score", "REAL" if self.backend.get_backend_type().value == "sqlite" else "DOUBLE PRECISION"),
+            ("raw_code_size", "INTEGER"),
+            ("raw_exec_time", "REAL" if self.backend.get_backend_type().value == "sqlite" else "DOUBLE PRECISION"),
+        ]
+        for col_name, col_type in raw_metric_columns:
+            try:
+                if not self.backend.column_exists("programs", col_name):
+                    logger.info(f"Adding {col_name} column to programs table")
+                    self.backend.add_column("programs", col_name, col_type)
+                    self.backend.commit()
+                    logger.info(f"Successfully added {col_name} column")
+            except Exception as e:
+                logger.error(f"Error during {col_name} migration: {e}")
+
+        # Migration 3: Add objective_function_used column to track which formula was used
+        try:
+            if not self.backend.column_exists("programs", "objective_function_used"):
+                logger.info("Adding objective_function_used column to programs table")
+                self.backend.add_column("programs", "objective_function_used", "TEXT")
+                self.backend.commit()
+                logger.info("Successfully added objective_function_used column")
+        except Exception as e:
+            logger.error(f"Error during objective_function_used migration: {e}")
+
+        # Migration 4: Add preprompt column to track LLM preprompt used for generation
+        try:
+            if not self.backend.column_exists("programs", "preprompt"):
+                logger.info("Adding preprompt column to programs table")
+                self.backend.add_column("programs", "preprompt", "TEXT")
+                self.backend.commit()
+                logger.info("Successfully added preprompt column")
+        except Exception as e:
+            logger.error(f"Error during preprompt migration: {e}")
+
     @db_retry()
     def _load_metadata_from_db(self):
         if not self.cursor:
@@ -563,6 +625,49 @@ class ProgramDatabase:
         if not row or row["value"] is None or row["value"] == "None":
             if not self.read_only:
                 self._update_metadata_in_db("beam_search_parent_id", None)
+        
+        # Store run_id and task_name if provided in config (for visualization)
+        if not self.read_only:
+            if self.config.run_id:
+                self._update_metadata_in_db("run_id", self.config.run_id)
+            if self.config.task_name:
+                self._update_metadata_in_db("task_name", self.config.task_name)
+        
+        # Log warning if database has multiple tasks (info only, not blocking)
+        if self.config.task_name and self.backend.get_backend_type() == BackendType.POSTGRES:
+            self._log_database_task_info()
+
+    def _log_database_task_info(self) -> None:
+        """
+        Log info about tasks in the database.
+        Multiple tasks are allowed - parent selection will filter by task.
+        """
+        config_task = self.config.task_name
+        if not config_task:
+            return
+        
+        try:
+            self.cursor.execute(
+                """
+                SELECT metadata->>'task_name' as task_name, COUNT(*) as count
+                FROM programs 
+                WHERE metadata->>'task_name' IS NOT NULL
+                GROUP BY metadata->>'task_name'
+                """
+            )
+            rows = self.cursor.fetchall()
+            
+            if rows:
+                tasks_info = []
+                for row in rows:
+                    task = row["task_name"] if isinstance(row, dict) else row[0]
+                    count = row["count"] if isinstance(row, dict) else row[1]
+                    tasks_info.append(f"{task}({count})")
+                
+                logger.info(f"Database tasks: {', '.join(tasks_info)}. "
+                           f"This run uses task='{config_task}'")
+        except Exception as e:
+            logger.debug(f"Could not query database tasks: {e}")
 
     @db_retry()
     def _update_metadata_in_db(self, key: str, value: Optional[str]):
@@ -588,6 +693,63 @@ class ProgramDatabase:
             return result["count"]
         except (KeyError, IndexError):
             return result[0]  # Fallback to index access
+
+    def _validate_task_consistency(self, program: Program) -> None:
+        """
+        Validate that the program's task matches the run's expected task.
+        
+        For shared PostgreSQL databases, this ensures all programs in a run 
+        have the same task_name, preventing data mixing between different tasks.
+        
+        Validation checks:
+        1. Program's task_name in metadata must match config's task_name
+        2. Existing programs in this run must have the same task_name
+        
+        Raises:
+            ValueError: If task mismatch is detected.
+        """
+        config_task = self.config.task_name
+        if not config_task:
+            return  # No task configured, skip validation
+        
+        # Check program metadata task matches config task
+        program_task = program.metadata.get("task_name") if program.metadata else None
+        if program_task and program_task != config_task:
+            raise ValueError(
+                f"Task mismatch! Config task is '{config_task}' but program "
+                f"metadata has task_name='{program_task}'. "
+                f"Program ID: {program.id}"
+            )
+        
+        # Check existing programs in this run have the same task_name
+        run_id = self.config.run_id
+        if not run_id:
+            return  # No run_id, can't check for conflicts
+        
+        try:
+            # Find any existing program in this run with a different task
+            self.cursor.execute(
+                """
+                SELECT metadata->>'task_name' as existing_task
+                FROM programs 
+                WHERE metadata->>'run_id' = ?
+                  AND metadata->>'task_name' IS NOT NULL
+                  AND metadata->>'task_name' != ?
+                LIMIT 1
+                """,
+                (run_id, config_task)
+            )
+            row = self.cursor.fetchone()
+            if row:
+                existing_task = row["existing_task"] if isinstance(row, dict) else row[0]
+                raise ValueError(
+                    f"Task mismatch! Run '{run_id}' already has programs with "
+                    f"task_name='{existing_task}', but this instance is configured "
+                    f"for task='{config_task}'. Cannot mix tasks in the same run. "
+                    f"Program ID: {program.id}"
+                )
+        except (KeyError, TypeError):
+            pass  # No existing programs or query failed, that's fine
 
     @db_retry()
     def add(self, program: Program, verbose: bool = False) -> str:
@@ -616,13 +778,28 @@ class ProgramDatabase:
 
         self.island_manager.assign_island(program)
 
+        # Ensure metadata dict exists
+        if program.metadata is None:
+            program.metadata = {}
+        
+        # Inject run_id into program metadata for tracking/visualization
+        if self.config.run_id and "run_id" not in program.metadata:
+            program.metadata["run_id"] = self.config.run_id
+        
+        # Inject task_name into program metadata to prevent task mixing
+        if self.config.task_name and "task_name" not in program.metadata:
+            program.metadata["task_name"] = self.config.task_name
+        
+        # Validate task consistency for shared PostgreSQL databases
+        # This prevents mixing data from different tasks (e.g., zork + circle_packing)
+        if self.config.task_name and self.backend.get_backend_type() == BackendType.POSTGRES:
+            self._validate_task_consistency(program)
+        
         # Calculate complexity if not pre-set (or if default 0.0)
         if program.complexity == 0.0:
             try:
                 code_metrics = analyze_code_metrics(program.code, program.language)
                 program.complexity = code_metrics.get("complexity_score", 0.0)
-                if program.metadata is None:
-                    program.metadata = {}
                 program.metadata["code_analysis_metrics"] = code_metrics
             except Exception as e:
                 logger.warning(
@@ -676,9 +853,11 @@ class ProgramDatabase:
                     combined_score, public_metrics, private_metrics,
                     text_feedback, complexity, embedding, embedding_pca_2d,
                     embedding_pca_3d, embedding_cluster_id, correct,
-                    children_count, metadata, island_idx, migration_history)
+                    children_count, metadata, island_idx, migration_history,
+                    raw_ppl_score, raw_code_size, raw_exec_time, objective_function_used,
+                    preprompt)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                           ?, ?, ?, ?, ?, ?)
+                           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     program.id,
@@ -704,6 +883,11 @@ class ProgramDatabase:
                     metadata_json,
                     program.island_idx,
                     migration_history_json,
+                    program.raw_ppl_score,
+                    program.raw_code_size,
+                    program.raw_exec_time,
+                    program.objective_function_used,
+                    program.preprompt,
                 ),
             )
 
@@ -1025,19 +1209,9 @@ class ProgramDatabase:
         programs = []
         for row_data in all_rows:
             p_dict = dict(row_data)
-            p_dict["public_metrics"] = (
-                json.loads(p_dict["public_metrics"])
-                if p_dict.get("public_metrics")
-                else {}
-            )
-            p_dict["private_metrics"] = (
-                json.loads(p_dict["private_metrics"])
-                if p_dict.get("private_metrics")
-                else {}
-            )
-            p_dict["metadata"] = (
-                json.loads(p_dict["metadata"]) if p_dict.get("metadata") else {}
-            )
+            p_dict["public_metrics"] = self._deserialize_json(p_dict.get("public_metrics"))
+            p_dict["private_metrics"] = self._deserialize_json(p_dict.get("private_metrics"))
+            p_dict["metadata"] = self._deserialize_json(p_dict.get("metadata"))
             programs.append(Program.from_dict(p_dict))
 
         if not programs:
@@ -1110,6 +1284,180 @@ class ProgramDatabase:
         # Filter out any None values that might result from row processing errors
         return [p for p in programs if p is not None]
 
+    # ========== Dynamic Objective Function Support ==========
+    
+    @db_retry()
+    def get_objective_function(self) -> Optional[str]:
+        """
+        Get the current objective function expression from metadata_store.
+        
+        Returns:
+            The objective function string or None if not set.
+            Default is "ppl_score" (just use the raw performance score).
+        """
+        if not self.cursor:
+            raise ConnectionError("DB not connected.")
+        
+        self.cursor.execute(
+            "SELECT value FROM metadata_store WHERE key = 'objective_function'"
+        )
+        row = self.cursor.fetchone()
+        if row and row["value"]:
+            return str(row["value"])
+        return None
+
+    @db_retry()
+    def set_objective_function(self, expression: str) -> bool:
+        """
+        Set the objective function expression and recalculate all scores.
+        
+        The expression can use:
+          - ppl_score: Primary performance score (game score, accuracy, etc.)
+          - code_size: Code length in characters
+          - exec_time: Execution time in seconds
+        
+        Examples:
+          - "ppl_score" - just use performance score
+          - "ppl_score - 0.01 * code_size" - penalize longer code
+          - "ppl_score / (1 + 0.1 * exec_time)" - penalize slower code
+          - "ppl_score * (1 - code_size / 10000)" - proportional size penalty
+        
+        Args:
+            expression: Python expression using ppl_score, code_size, exec_time
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if self.read_only:
+            raise PermissionError("Cannot modify objective function in read-only mode.")
+        if not self.cursor or not self.conn:
+            raise ConnectionError("DB not connected.")
+        
+        # Validate the expression by testing it with sample values
+        try:
+            test_vars = {"ppl_score": 100.0, "code_size": 1000, "exec_time": 1.0}
+            eval(expression, {"__builtins__": {}}, test_vars)
+        except Exception as e:
+            logger.error(f"Invalid objective function expression: {e}")
+            return False
+        
+        # Store the expression
+        self._update_metadata_in_db("objective_function", expression)
+        
+        # Recalculate all scores
+        self.recalculate_all_scores(expression)
+        
+        logger.info(f"Objective function updated to: {expression}")
+        return True
+
+    @db_retry()
+    def recalculate_all_scores(self, expression: Optional[str] = None) -> int:
+        """
+        Recalculate combined_score for all programs using the objective function.
+        
+        Args:
+            expression: Optional expression override. If None, uses stored expression.
+            
+        Returns:
+            Number of programs updated.
+        """
+        if self.read_only:
+            raise PermissionError("Cannot recalculate scores in read-only mode.")
+        if not self.cursor or not self.conn:
+            raise ConnectionError("DB not connected.")
+        
+        # Get expression if not provided
+        if expression is None:
+            expression = self.get_objective_function()
+        if expression is None:
+            expression = "ppl_score"  # Default: just use performance score
+        
+        # Get all programs with raw metrics
+        self.cursor.execute("""
+            SELECT id, raw_ppl_score, raw_code_size, raw_exec_time 
+            FROM programs 
+            WHERE raw_ppl_score IS NOT NULL
+        """)
+        rows = self.cursor.fetchall()
+        
+        updated = 0
+        for row in rows:
+            try:
+                ppl_score = float(row["raw_ppl_score"]) if row["raw_ppl_score"] else 0.0
+                code_size = int(row["raw_code_size"]) if row["raw_code_size"] else 0
+                exec_time = float(row["raw_exec_time"]) if row["raw_exec_time"] else 0.0
+                
+                # Calculate new combined score
+                local_vars = {
+                    "ppl_score": ppl_score,
+                    "code_size": code_size,
+                    "exec_time": exec_time,
+                }
+                new_score = eval(expression, {"__builtins__": {}}, local_vars)
+                
+                # Update the program
+                self.cursor.execute(
+                    "UPDATE programs SET combined_score = ? WHERE id = ?",
+                    (float(new_score), row["id"])
+                )
+                updated += 1
+            except Exception as e:
+                logger.warning(f"Failed to recalculate score for program {row['id']}: {e}")
+        
+        self.conn.commit()
+        logger.info(f"Recalculated scores for {updated} programs using: {expression}")
+        return updated
+
+    # ========== End Dynamic Objective Function Support ==========
+
+    # ========== Preprompt Support ==========
+    
+    @db_retry()
+    def get_preprompt(self) -> Optional[str]:
+        """
+        Get the current preprompt for LLM generation from metadata_store.
+        
+        Returns:
+            The preprompt string or None if not set.
+        """
+        if not self.cursor:
+            raise ConnectionError("DB not connected.")
+        
+        self.cursor.execute(
+            "SELECT value FROM metadata_store WHERE key = 'preprompt'"
+        )
+        row = self.cursor.fetchone()
+        if row and row["value"]:
+            return str(row["value"])
+        return None
+
+    @db_retry()
+    def set_preprompt(self, preprompt: str) -> bool:
+        """
+        Set the preprompt for LLM generation.
+        
+        The preprompt is injected at the beginning of the system message
+        used for code generation.
+        
+        Args:
+            preprompt: Text to prepend to the system prompt
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if self.read_only:
+            raise PermissionError("Cannot modify preprompt in read-only mode.")
+        if not self.cursor or not self.conn:
+            raise ConnectionError("DB not connected.")
+        
+        # Store the preprompt
+        self._update_metadata_in_db("preprompt", preprompt)
+        
+        logger.info(f"Preprompt updated: {preprompt[:100]}...")
+        return True
+
+    # ========== End Preprompt Support ==========
+
     @db_retry()
     def get_programs_by_generation(self, generation: int) -> List[Program]:
         """Get all programs from a specific generation."""
@@ -1171,33 +1519,10 @@ class ProgramDatabase:
         for row_data in all_rows:
             p_dict = dict(row_data)
 
-            # Optimize JSON parsing
-            public_metrics_text = p_dict.get("public_metrics")
-            if public_metrics_text:
-                try:
-                    p_dict["public_metrics"] = json.loads(public_metrics_text)
-                except json.JSONDecodeError:
-                    p_dict["public_metrics"] = {}
-            else:
-                p_dict["public_metrics"] = {}
-
-            private_metrics_text = p_dict.get("private_metrics")
-            if private_metrics_text:
-                try:
-                    p_dict["private_metrics"] = json.loads(private_metrics_text)
-                except json.JSONDecodeError:
-                    p_dict["private_metrics"] = {}
-            else:
-                p_dict["private_metrics"] = {}
-
-            metadata_text = p_dict.get("metadata")
-            if metadata_text:
-                try:
-                    p_dict["metadata"] = json.loads(metadata_text)
-                except json.JSONDecodeError:
-                    p_dict["metadata"] = {}
-            else:
-                p_dict["metadata"] = {}
+            # Use helper for JSON deserialization (handles both SQLite and PostgreSQL)
+            p_dict["public_metrics"] = self._deserialize_json(p_dict.get("public_metrics"))
+            p_dict["private_metrics"] = self._deserialize_json(p_dict.get("private_metrics"))
+            p_dict["metadata"] = self._deserialize_json(p_dict.get("metadata"))
 
             # Create program object
             programs.append(Program.from_dict(p_dict))
@@ -1364,7 +1689,13 @@ class ProgramDatabase:
 
         self.cursor.execute("SELECT COUNT(*) as count FROM archive")
         result = self.cursor.fetchone()
-        count = result.get("count", result.get("COUNT(*)", 0)) if result else 0
+        # Handle both dict-like and sqlite3.Row objects
+        if result is None:
+            count = 0
+        elif hasattr(result, 'get'):
+            count = result.get("count", result.get("COUNT(*)", 0))
+        else:
+            count = result[0] if result else 0
 
         if count < self.config.archive_size:
             self.cursor.execute(
@@ -1549,7 +1880,7 @@ class ProgramDatabase:
 
             similarities = []
             for row in rows:
-                db_embedding = json.loads(row["embedding"])
+                db_embedding = self._deserialize_json(row["embedding"], default=[])
                 if db_embedding:
                     sim = self._cosine_similarity(vec, db_embedding)
                     similarities.append(sim)
@@ -1602,13 +1933,13 @@ class ProgramDatabase:
         similarity_scores = []
         for row in rows:
             try:
-                embedding = json.loads(row["embedding"])
+                embedding = self._deserialize_json(row["embedding"], default=[])
                 if embedding:  # Skip empty embeddings
                     similarity = self._cosine_similarity(code_embedding, embedding)
                     similarity_scores.append(similarity)
                 else:
                     similarity_scores.append(0.0)
-            except json.JSONDecodeError:
+            except Exception:
                 logger.warning(f"Could not decode embedding for program {row['id']}")
                 similarity_scores.append(0.0)
                 continue
@@ -1660,13 +1991,13 @@ class ProgramDatabase:
 
         for row in rows:
             try:
-                embedding = json.loads(row["embedding"])
+                embedding = self._deserialize_json(row["embedding"], default=[])
                 if embedding:  # Skip empty embeddings
                     similarity = self._cosine_similarity(code_embedding, embedding)
                     if similarity > max_similarity:
                         max_similarity = similarity
                         most_similar_id = row["id"]
-            except json.JSONDecodeError:
+            except Exception:
                 logger.warning(f"Could not decode embedding for program {row['id']}")
                 continue
 
@@ -1724,14 +2055,14 @@ class ProgramDatabase:
 
             for row in rows:
                 try:
-                    embedding = json.loads(row["embedding"])
+                    embedding = self._deserialize_json(row["embedding"], default=[])
                     if embedding:  # Check if embedding is not empty
                         similarity = np.dot(code_embedding, embedding) / (
                             np.linalg.norm(code_embedding) * np.linalg.norm(embedding)
                         )
                         similarities.append(similarity)
                         program_ids.append(row["id"])
-                except (json.JSONDecodeError, ValueError, ZeroDivisionError) as e:
+                except (ValueError, ZeroDivisionError, TypeError) as e:
                     logger.warning(
                         f"Error computing similarity for program {row['id']}: {e}"
                     )
@@ -1871,7 +2202,7 @@ class ProgramDatabase:
                 return
 
             program_ids = [row["id"] for row in rows]
-            embeddings = [json.loads(row["embedding"]) for row in rows]
+            embeddings = [self._deserialize_json(row["embedding"], default=[]) for row in rows]
 
             # Use EmbeddingClient for dim reduction and clustering
             try:
@@ -1964,6 +2295,7 @@ class ProgramDatabase:
                     continue
                 program_data = dict(row)
                 # Manually handle JSON deserialization for thread safety
+                # Handles both SQLite (string) and PostgreSQL (dict/list)
                 for key, value in program_data.items():
                     if key in [
                         "public_metrics",
@@ -1975,11 +2307,9 @@ class ProgramDatabase:
                         "embedding_pca_2d",
                         "embedding_pca_3d",
                         "migration_history",
-                    ] and isinstance(value, str):
-                        try:
-                            program_data[key] = json.loads(value)
-                        except json.JSONDecodeError:
-                            program_data[key] = {} if key.endswith("_metrics") else []
+                    ]:
+                        default = {} if key.endswith("_metrics") or key == "metadata" else []
+                        program_data[key] = self._deserialize_json(value, default=default)
                 programs.append(Program(**program_data))
             return programs
         finally:
@@ -2022,6 +2352,7 @@ class ProgramDatabase:
                 program_data = dict(row_data)
 
                 # Manually handle JSON deserialization for thread safety
+                # Handles both SQLite (string) and PostgreSQL (dict/list)
                 json_fields = [
                     "public_metrics",
                     "private_metrics",
@@ -2033,15 +2364,11 @@ class ProgramDatabase:
                     "embedding_pca_3d",
                     "migration_history",
                 ]
-                for key, value in program_data.items():
-                    if key in json_fields and isinstance(value, str):
-                        try:
-                            program_data[key] = json.loads(value)
-                        except json.JSONDecodeError:
-                            is_dict_field = (
-                                key.endswith("_metrics") or key == "metadata"
-                            )
-                            program_data[key] = {} if is_dict_field else []
+                for key in json_fields:
+                    if key in program_data:
+                        is_dict_field = key.endswith("_metrics") or key == "metadata"
+                        default = {} if is_dict_field else []
+                        program_data[key] = self._deserialize_json(program_data[key], default=default)
 
                 # Handle text_feedback
                 if (

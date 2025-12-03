@@ -18,6 +18,23 @@ def main(cfg: DictConfig):
     job_cfg = hydra.utils.instantiate(cfg.job_config)
     db_cfg = hydra.utils.instantiate(cfg.db_config)
     evo_cfg = hydra.utils.instantiate(cfg.evo_config)
+    
+    # Pass run identification info to database config for visualization
+    # Use run_name from config (or generate from results_dir)
+    run_id = cfg.get("run_name", None)
+    if not run_id and hasattr(cfg, "output_dir"):
+        # Extract run_id from output_dir path
+        output_dir = str(cfg.output_dir)
+        parts = output_dir.split("/")
+        if len(parts) >= 2:
+            run_id = parts[-1]  # Last part is usually the run identifier
+    if run_id:
+        db_cfg.run_id = run_id
+    
+    # Get task_name from exp_name in config
+    task_name = cfg.get("exp_name", None)
+    if task_name:
+        db_cfg.task_name = task_name
 
     evo_runner = EvolutionRunner(
         evo_config=evo_cfg,

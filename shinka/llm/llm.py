@@ -1342,6 +1342,20 @@ def extract_between(
         else:
             return matched_str
 
+    # Try markdown bold format as fallback (e.g., **NAME** instead of <NAME>)
+    # Some models convert XML tags to markdown bold
+    tag_name = re.sub(r"[<>/]", "", start).strip()  # Extract tag name from <NAME>
+    if tag_name:
+        # Match **TAG_NAME**\n content \n**NEXT_TAG** or end of string
+        md_pattern = rf"\*\*{re.escape(tag_name)}\*\*\s*\n?\s*(.*?)(?=\n\s*\*\*|\Z)"
+        md_match = re.search(md_pattern, content, re.DOTALL | re.IGNORECASE)
+        if md_match:
+            matched_str = md_match.group(1).strip()
+            if return_dict:
+                return json.loads(matched_str)
+            else:
+                return matched_str
+
     # Extracts any block between ``` and ```
     if fallback:
         match = re.search("```\\s*(.*?)\\s*```", content, re.DOTALL)

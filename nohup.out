@@ -1,0 +1,589 @@
+[INFO] Connecting to PostgreSQL: shinka at localhost:5433
+[DEBUG] Server root directory: /data/users/zacharie/ShinkaEvolve/shinka/webui
+[DEBUG] Search root directory: /data/users/zacharie/ShinkaEvolve
+[DEBUG] Using PostgreSQL backend
+[SERVER] Connected to PostgreSQL: shinka at localhost:5433
+
+[*] Serving http://0.0.0.0:8001  (Ctrl+C to stop)
+→ Visit http://localhost:8001/viz_tree.html
+(remember to forward the port if this is a remote host)
+
+[SERVER] Received GET request for: /get_programs?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /list_databases
+[SERVER] Listing evolution runs from PostgreSQL
+
+[SERVER] "GET /list_databases HTTP/1.1" 200 -
+[SERVER] Found 2 evolution runs
+
+[SERVER] Received GET request for: /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting objective function for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting preprompt for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting focus node for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting stats for run: 2025.12.03072236_dual_llm_10k
+
+[SERVER] "GET /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Stats: 275 programs, max gen 248
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting objective function for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting preprompt for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting focus node for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting stats for run: 2025.12.03072236_dual_llm_10k
+
+[SERVER] "GET /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Stats: 275 programs, max gen 248
+
+[SERVER] Received GET request for: /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting objective function for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Listing meta files for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting preprompt for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting focus node for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting stats for run: 2025.12.03072236_dual_llm_10k
+
+[SERVER] "GET /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Stats: 275 programs, max gen 248
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Listing meta files for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Listing meta files for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Listing meta files for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+----------------------------------------
+Exception occurred during processing of request from ('100.68.117.33', 51779)
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/socketserver.py", line 316, in _handle_request_noblock
+    self.process_request(request, client_address)
+  File "/usr/lib/python3.10/socketserver.py", line 347, in process_request
+    self.finish_request(request, client_address)
+  File "/usr/lib/python3.10/socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 1168, in handler_factory
+    return DatabaseRequestHandler(
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 116, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.10/http/server.py", line 668, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.10/socketserver.py", line 747, in __init__
+    self.handle()
+  File "/usr/lib/python3.10/http/server.py", line 433, in handle
+    self.handle_one_request()
+  File "/usr/lib/python3.10/http/server.py", line 421, in handle_one_request
+    method()
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 160, in do_GET
+    return self.handle_get_programs(
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 763, in handle_get_programs
+    self.send_json_response(programs_dict)
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 1151, in send_json_response
+    self.wfile.write(payload)
+  File "/usr/lib/python3.10/socketserver.py", line 826, in write
+    self._sock.sendall(b)
+BrokenPipeError: [Errno 32] Broken pipe
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('100.68.117.33', 52003)
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/socketserver.py", line 316, in _handle_request_noblock
+    self.process_request(request, client_address)
+  File "/usr/lib/python3.10/socketserver.py", line 347, in process_request
+    self.finish_request(request, client_address)
+  File "/usr/lib/python3.10/socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 1168, in handler_factory
+    return DatabaseRequestHandler(
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 116, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.10/http/server.py", line 668, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.10/socketserver.py", line 747, in __init__
+    self.handle()
+  File "/usr/lib/python3.10/http/server.py", line 433, in handle
+    self.handle_one_request()
+  File "/usr/lib/python3.10/http/server.py", line 421, in handle_one_request
+    method()
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 160, in do_GET
+    return self.handle_get_programs(
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 735, in handle_get_programs
+    self.send_json_response(cached_data)
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 1151, in send_json_response
+    self.wfile.write(payload)
+  File "/usr/lib/python3.10/socketserver.py", line 826, in write
+    self._sock.sendall(b)
+BrokenPipeError: [Errno 32] Broken pipe
+----------------------------------------
+----------------------------------------
+Exception occurred during processing of request from ('100.68.117.33', 52004)
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/socketserver.py", line 316, in _handle_request_noblock
+    self.process_request(request, client_address)
+  File "/usr/lib/python3.10/socketserver.py", line 347, in process_request
+    self.finish_request(request, client_address)
+  File "/usr/lib/python3.10/socketserver.py", line 360, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 1168, in handler_factory
+    return DatabaseRequestHandler(
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 116, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.10/http/server.py", line 668, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.10/socketserver.py", line 747, in __init__
+    self.handle()
+  File "/usr/lib/python3.10/http/server.py", line 433, in handle
+    self.handle_one_request()
+  File "/usr/lib/python3.10/http/server.py", line 421, in handle_one_request
+    method()
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 160, in do_GET
+    return self.handle_get_programs(
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 763, in handle_get_programs
+    self.send_json_response(programs_dict)
+  File "/data/users/zacharie/ShinkaEvolve/shinka/webui/visualization.py", line 1151, in send_json_response
+    self.wfile.write(payload)
+  File "/usr/lib/python3.10/socketserver.py", line 826, in write
+    self._sock.sendall(b)
+BrokenPipeError: [Errno 32] Broken pipe
+----------------------------------------
+[INFO] Connecting to PostgreSQL: shinka at localhost:5433
+[DEBUG] Server root directory: /data/users/zacharie/ShinkaEvolve/shinka/webui
+[DEBUG] Search root directory: /data/users/zacharie/ShinkaEvolve
+[DEBUG] Using PostgreSQL backend
+[SERVER] Connected to PostgreSQL: shinka at localhost:5433
+
+[*] Serving http://0.0.0.0:8001  (Ctrl+C to stop)
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+→ Visit http://localhost:8001/viz_tree.html
+(remember to forward the port if this is a remote host)
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+[SERVER] Serving from cache
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting objective function for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /list_databases
+[SERVER] Listing evolution runs from PostgreSQL
+
+[SERVER] "GET /list_databases HTTP/1.1" 200 -
+[SERVER] Found 2 evolution runs
+
+[SERVER] Received GET request for: /get_programs_summary?db_path=test
+[SERVER] Fetching programs summary (run_id=test)
+
+[SERVER] "GET /get_programs_summary?db_path=test HTTP/1.1" 200 -
+[SERVER] Served 0 program summaries
+
+[SERVER] Received GET request for: /get_programs_summary?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db
+[SERVER] Fetching programs summary (run_id=2025.12.03072236_dual_llm_10k)
+
+[SERVER] "GET /get_programs_summary?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db HTTP/1.1" 200 -
+[SERVER] Served 275 program summaries
+
+[SERVER] Received GET request for: /get_programs_summary?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db
+[SERVER] Fetching programs summary (run_id=2025.12.03072236_dual_llm_10k)
+
+[SERVER] "GET /get_programs_summary?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db HTTP/1.1" 200 -
+[SERVER] Served 275 program summaries
+
+[SERVER] Received GET request for: /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting objective function for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/objective_function?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting preprompt for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/preprompt?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting focus node for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /api/focus_node?run_id=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Getting stats for run: 2025.12.03072236_dual_llm_10k
+
+[SERVER] "GET /get_db_stats?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Stats: 275 programs, max gen 248
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_program_details?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db&program_id=1
+
+[SERVER] code 400, message Missing program id parameter
+
+[SERVER] "GET /get_program_details?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db&program_id=1 HTTP/1.1" 400 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Listing meta files for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db
+[SERVER] Listing meta files for run: zork/2025.12.03072236_dual_llm_10k/evolution_db
+
+[SERVER] "GET /get_meta_files?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db HTTP/1.1" 200 -
+
+[SERVER] Received GET request for: /get_program_details?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db&id=1
+[SERVER] Fetching program details for: 1...
+
+[SERVER] code 404, message Program not found: 1
+
+[SERVER] "GET /get_program_details?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db&id=1 HTTP/1.1" 404 -
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs_summary?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db
+[SERVER] Fetching programs summary (run_id=2025.12.03072236_dual_llm_10k)
+
+[SERVER] "GET /get_programs_summary?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db HTTP/1.1" 200 -
+[SERVER] Served 275 program summaries
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_program_details?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db&id=ddcf989e-1296-4596-8ad7-07e1372c2ff2
+[SERVER] Fetching program details for: ddcf989e-1296-4596-8...
+
+[SERVER] "GET /get_program_details?db_path=zork/2025.12.03072236_dual_llm_10k/evolution_db&id=ddcf989e-1296-4596-8ad7-07e1372c2ff2 HTTP/1.1" 200 -
+[SERVER] Served details for program ddcf989e-1296-4596-8...
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]
+
+[SERVER] Received GET request for: /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true
+[SERVER] Fetching programs (run_id=2025.12.03072236_dual_llm_10k, limit=0, offset=0, min_gen=0, max_gen=None, top_k=0)
+
+[SERVER] "GET /get_programs?db_path=zork%2F2025.12.03072236_dual_llm_10k%2Fevolution_db&timestamp_check=true HTTP/1.1" 200 -
+[SERVER] Successfully served 275 programs [filtered from 275]

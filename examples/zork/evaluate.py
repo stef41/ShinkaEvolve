@@ -78,12 +78,19 @@ def evaluate_zork_agent(program_path: str, results_dir: str) -> Dict[str, Any]:
                         if status == 'success':
                             score = data.get('average_ntps', 0.0)
                             exec_time = data.get('execution_time', 0.0)
-                            print(f"🎮 Score: {score:.1f}/350 (time: {exec_time:.2f}s)")
+                            # Use MIND's pre-computed metrics (includes compressed size, tmp_size penalty)
+                            api_code_size = data.get('code_size', 0)
+                            compressed_size = data.get('compressed_code_size', api_code_size)
+                            tmp_size = data.get('tmp_size', 0)
+                            print(f"🎮 Score: {score:.1f}/350 (time: {exec_time:.2f}s, code: {compressed_size}b, tmp: {tmp_size}b)")
                             
                             result = {
                                 'game_score': float(score),
                                 'combined_score': float(score),
                                 'execution_time': float(exec_time),
+                                'code_size': int(api_code_size),
+                                'compressed_code_size': int(compressed_size),
+                                'tmp_size': int(tmp_size),
                                 'submission_id': submission_id,
                                 'success': True
                             }
@@ -106,10 +113,19 @@ def evaluate_zork_agent(program_path: str, results_dir: str) -> Dict[str, Any]:
     # Save results for ShinkaEvolve
     # ShinkaEvolve expects: metrics.json and correct.json as separate files
     
+    # Use MIND API's pre-computed code_size (includes compression analysis)
+    # Fallback to len(code) only if API didn't provide it
+    api_code_size = result.get('code_size', len(code))
+    compressed_size = result.get('compressed_code_size', api_code_size)
+    tmp_size = result.get('tmp_size', 0)
+    
     # Save metrics.json
     metrics = {
         'combined_score': result['combined_score'],
         'game_score': result['game_score'],
+        'code_size': api_code_size,
+        'compressed_code_size': compressed_size,
+        'tmp_size': tmp_size,
     }
     if 'execution_time' in result:
         metrics['execution_time'] = result['execution_time']

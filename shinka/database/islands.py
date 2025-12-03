@@ -141,7 +141,7 @@ class CopyInitialProgramIslandStrategy(IslandStrategy):
         # Check if this is the very first program in the database
         self.cursor.execute("SELECT COUNT(*) as count FROM programs")
         result = self.cursor.fetchone()
-        program_count = result.get("count", result.get("COUNT(*)", 0)) if result else 0
+        program_count = (result["count"] if "count" in result.keys() else result[0]) if result else 0
         if program_count == 0:
             # This is the first program - assign to island 0
             program.island_idx = 0
@@ -240,7 +240,7 @@ class ElitistMigrationStrategy(IslandMigrationStrategy):
                 (source_idx,),
             )
             result = self.cursor.fetchone()
-            island_size = result.get("count", result.get("COUNT(*)", 0)) if result else 0
+            island_size = (result["count"] if "count" in result.keys() else result[0]) if result else 0
 
             if island_size <= 1:
                 continue  # Skip tiny islands
@@ -342,7 +342,7 @@ class ElitistMigrationStrategy(IslandMigrationStrategy):
             (source_idx,),
         )
         result = self.cursor.fetchone()
-        available_programs = result.get("count", result.get("COUNT(*)", 0)) if result else 0
+        available_programs = (result["count"] if "count" in result.keys() else result[0]) if result else 0
 
         if available_programs == 0:
             logger.debug(
@@ -400,11 +400,14 @@ class ElitistMigrationStrategy(IslandMigrationStrategy):
             "SELECT migration_history FROM programs WHERE id = ?", (migrant_id,)
         )
         row = self.cursor.fetchone()
-        history = (
-            json.loads(row["migration_history"])
-            if row and row["migration_history"]
-            else []
-        )
+        # Handle both string (SQLite) and list (PostgreSQL jsonb) migration_history
+        raw_history = row["migration_history"] if row else None
+        if isinstance(raw_history, list):
+            history = raw_history
+        elif raw_history:
+            history = json.loads(raw_history)
+        else:
+            history = []
 
         # Add new migration event
         history.append(
@@ -475,7 +478,12 @@ class ElitistMigrationStrategy(IslandMigrationStrategy):
                         children = result["children_count"] or 0
                         generation = result["generation"] or 0
                         complexity = result["complexity"] or 0
-                        metadata = json.loads(result["metadata"] or "{}")
+                        # Handle both string (SQLite) and dict (PostgreSQL jsonb) metadata
+                        raw_metadata = result["metadata"]
+                        if isinstance(raw_metadata, dict):
+                            metadata = raw_metadata
+                        else:
+                            metadata = json.loads(raw_metadata or "{}")
 
                         # Format score
                         score_str = f"{score:.3f}" if score is not None else "N/A"

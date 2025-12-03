@@ -583,7 +583,11 @@ class ProgramDatabase:
         if not result:
             return 0
         # Handle both SQLite (COUNT(*)) and PostgreSQL (count) column names
-        return result.get("count", result.get("COUNT(*)", 0))
+        # Use bracket notation for sqlite3.Row compatibility
+        try:
+            return result["count"]
+        except (KeyError, IndexError):
+            return result[0]  # Fallback to index access
 
     @db_retry()
     def add(self, program: Program, verbose: bool = False) -> str:

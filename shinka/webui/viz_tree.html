@@ -2811,7 +2811,32 @@ ${'='.repeat(80)}
             if (!window.currentDbPath) return;
             
             try {
-                // Check if there's new data available
+                // For large datasets in dynamic mode, just check stats instead of loading all data
+                if (currentLoadMode === 'dynamic') {
+                    const statsResponse = await fetch(`/get_db_stats?db_path=${encodeURIComponent(window.currentDbPath)}`);
+                    if (!statsResponse.ok) return;
+                    
+                    const stats = await statsResponse.json();
+                    const currentCount = window.rawDbData ? window.rawDbData.length : 0;
+                    
+                    // Check if total count changed significantly
+                    if (stats.total_count !== window.dbStats?.total_count) {
+                        console.log("[DEBUG] Auto-refresh: Database size changed, updating stats...");
+                        window.dbStats = stats;
+                        
+                        // Reload with current filter settings
+                        const minGenInput = document.getElementById('min-gen-input');
+                        const maxGenInput = document.getElementById('max-gen-input');
+                        const minGen = minGenInput ? parseInt(minGenInput.value) || 0 : Math.max(0, stats.max_generation - 50);
+                        const maxGen = maxGenInput ? parseInt(maxGenInput.value) || stats.max_generation : stats.max_generation;
+                        
+                        window.isReloadingData = true;
+                        await loadDynamicDataSilent(window.currentDbPath, { min_gen: minGen, max_gen: maxGen });
+                    }
+                    return;
+                }
+                
+                // For small datasets, check with timestamp
                 const response = await fetch(`/get_programs?db_path=${encodeURIComponent(window.currentDbPath)}&timestamp_check=true`);
                 if (!response.ok) {
                     console.log("[DEBUG] Auto-refresh: Failed to check for new data");
@@ -2858,6 +2883,47 @@ ${'='.repeat(80)}
             } catch (error) {
                 console.log("[DEBUG] Auto-refresh: Error checking for new data:", error);
                 // Don't show alerts for auto-refresh errors, just log them
+            }
+        }
+
+        // Silent version of loadDynamicData for auto-refresh
+        async function loadDynamicDataSilent(dbPath, options = {}) {
+            try {
+                let url = `/get_programs?db_path=${encodeURIComponent(dbPath)}`;
+                if (options.min_gen !== undefined) url += `&min_gen=${options.min_gen}`;
+                if (options.max_gen !== undefined) url += `&max_gen=${options.max_gen}`;
+                if (options.best_path_only) url += `&best_path_only=true`;
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to load data (HTTP ${response.status})`);
+                }
+                
+                const result = await response.json();
+                const data = Array.isArray(result) ? result : result.programs;
+                const totalCount = result.total_count || data.length;
+                
+                if (!data || data.length === 0) {
+                    console.log("[DEBUG] Auto-refresh: No data in range");
+                    return;
+                }
+                
+                console.log("[DEBUG] Auto-refresh: Processing", data.length, "of", totalCount, "programs");
+                window.rawDbData = data;
+                
+                const scanStatus = document.getElementById("scan-status");
+                if (scanStatus) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                    scanStatus.textContent = `Showing ${data.length} of ${totalCount} programs [${timeStr}]`;
+                }
+                
+                lastDataTimestamp = Date.now();
+                processData(data);
+            } catch (error) {
+                console.log("[DEBUG] Auto-refresh error:", error);
+            } finally {
+                window.isReloadingData = false;
             }
         }
 
@@ -2944,7 +3010,12 @@ ${'='.repeat(80)}
         }
 
         // Function to load and process data from a database file
-        function loadDatabase(dbPath) {
+        // Configuration for dynamic loading
+        const LARGE_DATASET_THRESHOLD = 2000;  // Switch to dynamic mode above this
+        let currentLoadMode = 'full';  // 'full' or 'dynamic'
+        let currentGenRange = { min: 0, max: null };
+        
+        function loadDatabase(dbPath, options = {}) {
             console.log("[DEBUG] Attempting to load DB from:", dbPath);
 
             document.getElementById("node-summary").innerHTML = "";
@@ -2983,6 +3054,45 @@ ${'='.repeat(80)}
             }
             
             const scanStatus = document.getElementById("scan-status");
+            scanStatus.textContent = "Checking database size...";
+            
+            // First, get stats to decide loading strategy
+            fetch(`/get_db_stats?db_path=${encodeURIComponent(dbPath)}`)
+                .then(response => response.json())
+                .then(stats => {
+                    console.log("[DEBUG] DB stats:", stats);
+                    window.dbStats = stats;
+                    
+                    if (stats.total_count > LARGE_DATASET_THRESHOLD) {
+                        // Large dataset - use dynamic loading
+                        currentLoadMode = 'dynamic';
+                        scanStatus.textContent = `Large dataset (${stats.total_count} programs) - using dynamic loading`;
+                        
+                        // Show generation range controls
+                        showGenerationControls(stats);
+                        
+                        // Load only best path + recent generations by default
+                        loadDynamicData(dbPath, {
+                            best_path_only: false,
+                            min_gen: Math.max(0, stats.max_generation - 50),  // Last 50 generations
+                            max_gen: stats.max_generation
+                        });
+                    } else {
+                        // Small dataset - load all
+                        currentLoadMode = 'full';
+                        hideGenerationControls();
+                        loadFullData(dbPath);
+                    }
+                })
+                .catch(error => {
+                    console.log("[DEBUG] Stats fetch failed, loading full data:", error);
+                    hideGenerationControls();
+                    loadFullData(dbPath);
+                });
+        }
+        
+        function loadFullData(dbPath) {
+            const scanStatus = document.getElementById("scan-status");
             scanStatus.textContent = "Loading data...";
             
             fetch(`/get_programs?db_path=${encodeURIComponent(dbPath)}`)
@@ -2993,10 +3103,32 @@ ${'='.repeat(80)}
                     return response.json();
                 })
                 .then(data => {
-                    console.log("[DEBUG] Data received from server:", data.length, "programs");
+                    console.log("[DEBUG] Data received from server:", data ? data.length : 0, "programs");
                     
                     if (!data || data.length === 0) {
-                        throw new Error("Database contains no programs.");
+                        // Handle empty database gracefully - not an error
+                        window.rawDbData = [];
+                        const now = new Date();
+                        const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                        scanStatus.textContent = `Database empty (0 programs) [${timeStr}]`;
+                        scanStatus.style.color = '#ffc107';
+                        
+                        // Clear the visualization but keep the file selector intact
+                        const svg = d3.select("#visual-container svg");
+                        if (!svg.empty()) {
+                            svg.selectAll("*").remove();
+                            svg.append("text")
+                               .attr("x", "50%")
+                               .attr("y", "50%")
+                               .attr("text-anchor", "middle")
+                               .attr("fill", "#888")
+                               .attr("font-size", "18px")
+                               .text("Database is empty. Waiting for evolution to generate programs...");
+                        }
+                        
+                        // Start auto-refresh so it picks up new programs when evolution runs
+                        startAutoRefresh();
+                        return;
                     }
                     
                     window.rawDbData = data;
@@ -3015,54 +3147,184 @@ ${'='.repeat(80)}
                     startAutoRefresh();
                 })
                 .catch(error => {
-                    console.error(`[DEBUG] Failed to load database: ${error.message}`);
-                    
-                    // Check if this is a concurrent access issue (503 = Service Unavailable)
-                    const isConcurrentAccess = error.message.includes('503') || 
-                                             error.message.includes('temporarily unavailable');
-                    
-                    if (isConcurrentAccess) {
-                        scanStatus.textContent = "Database busy - evolution may be running";
-                        scanStatus.style.color = '#ffc107'; // Warning yellow
-                        
-                        // Show concurrent access warning in the file list area
-                        const fileList = document.getElementById("file-list");
-                        fileList.innerHTML = `
-                            <div style="padding: 20px; text-align: center; color: #ffc107; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; margin: 10px 0;">
-                                <h3>⚠️ Database Temporarily Unavailable</h3>
-                                <p>The database appears to be in use by a running evolution process.</p>
-                                <p><strong>With WAL mode enabled:</strong> This should resolve shortly.</p>
-                                <p>Try refreshing in a few seconds, or wait for the evolution to complete.</p>
-                                <button onclick="loadDatabase('${dbPath}')" style="margin-top: 10px; padding: 8px 16px; background-color: #ffc107; border: none; border-radius: 3px; cursor: pointer;">
-                                    🔄 Retry Now
-                                </button>
-                            </div>
-                        `;
-                        
-                        // Don't stop auto-refresh for concurrent access - it might resolve
-                        console.log("[DEBUG] Database busy, keeping auto-refresh active");
-                    } else {
-                        scanStatus.textContent = "Error loading data.";
-                        scanStatus.style.color = '#dc3545'; // Error red
-                        
-                        // Show general error message
-                        const fileList = document.getElementById("file-list");
-                        fileList.innerHTML = `
-                            <div style="padding: 20px; text-align: center; color: #dc3545; background-color: #f8d7da; border: 1px solid #dc3545; border-radius: 5px; margin: 10px 0;">
-                                <h3>❌ Failed to Load Database</h3>
-                                <p>Error: ${error.message}</p>
-                                <p>Please check the database file and try again.</p>
-                            </div>
-                        `;
-                        
-                        // Stop auto-refresh on general errors
-                        stopAutoRefresh();
-                    }
+                    handleLoadError(error, dbPath);
                 })
                 .finally(() => {
-                    window.isReloadingData = false; // Re-enable state saving
+                    window.isReloadingData = false;
                     console.log("[DEBUG] Data reloading finished.");
                 });
+        }
+        
+        function loadDynamicData(dbPath, options = {}) {
+            const scanStatus = document.getElementById("scan-status");
+            scanStatus.textContent = "Loading filtered data...";
+            
+            let url = `/get_programs?db_path=${encodeURIComponent(dbPath)}`;
+            if (options.min_gen !== undefined) url += `&min_gen=${options.min_gen}`;
+            if (options.max_gen !== undefined) url += `&max_gen=${options.max_gen}`;
+            if (options.top_k) url += `&top_k=${options.top_k}`;
+            // Legacy support
+            if (options.best_path_only) url += `&top_k=1`;
+            if (options.limit) url += `&limit=${options.limit}`;
+            if (options.offset) url += `&offset=${options.offset}`;
+            
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to load data (HTTP ${response.status})`);
+                    }
+                    return response.json();
+                })
+                .then(response => {
+                    // Handle both old format (array) and new format (object with metadata)
+                    let data = Array.isArray(response) ? response : response.programs;
+                    const totalCount = response.total_count || data.length;
+                    const filteredCount = response.filtered_count || data.length;
+                    
+                    console.log("[DEBUG] Dynamic data received:", data ? data.length : 0, "of", totalCount, "programs");
+                    
+                    if (!data || data.length === 0) {
+                        // Handle empty result gracefully - just show message, not error
+                        window.rawDbData = [];
+                        const now = new Date();
+                        const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                        scanStatus.textContent = `No programs in selected range [${timeStr}]`;
+                        scanStatus.style.color = '#ffc107';
+                        
+                        // Clear the visualization but keep the controls intact
+                        const svg = d3.select("#visual-container svg");
+                        if (!svg.empty()) {
+                            svg.selectAll("*").remove();
+                            svg.append("text")
+                               .attr("x", "50%")
+                               .attr("y", "50%")
+                               .attr("text-anchor", "middle")
+                               .attr("fill", "#888")
+                               .attr("font-size", "18px")
+                               .text("No programs found in selected generation range.");
+                        }
+                        
+                        startAutoRefresh();
+                        return;
+                    }
+                    
+                    window.rawDbData = data;
+                    
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
+                    scanStatus.textContent = `Showing ${data.length} of ${totalCount} programs [${timeStr}]`;
+                    
+                    lastDataTimestamp = Date.now();
+                    processData(data);
+                    startAutoRefresh();
+                })
+                .catch(error => {
+                    handleLoadError(error, dbPath);
+                })
+                .finally(() => {
+                    window.isReloadingData = false;
+                });
+        }
+        
+        function handleLoadError(error, dbPath) {
+            const scanStatus = document.getElementById("scan-status");
+            console.error(`[DEBUG] Failed to load database: ${error.message}`);
+            
+            const isConcurrentAccess = error.message.includes('503') || 
+                                     error.message.includes('temporarily unavailable');
+            
+            if (isConcurrentAccess) {
+                scanStatus.textContent = "Database busy - evolution may be running";
+                scanStatus.style.color = '#ffc107';
+                
+                const fileList = document.getElementById("file-list");
+                fileList.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #ffc107; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; margin: 10px 0;">
+                        <h3>⚠️ Database Temporarily Unavailable</h3>
+                        <p>The database appears to be in use by a running evolution process.</p>
+                        <p><strong>With WAL mode enabled:</strong> This should resolve shortly.</p>
+                        <p>Try refreshing in a few seconds, or wait for the evolution to complete.</p>
+                        <button onclick="loadDatabase('${dbPath}')" style="margin-top: 10px; padding: 8px 16px; background-color: #ffc107; border: none; border-radius: 3px; cursor: pointer;">
+                            🔄 Retry Now
+                        </button>
+                    </div>
+                `;
+                console.log("[DEBUG] Database busy, keeping auto-refresh active");
+            } else {
+                scanStatus.textContent = "Error loading data.";
+                scanStatus.style.color = '#dc3545';
+                
+                const fileList = document.getElementById("file-list");
+                fileList.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #dc3545; background-color: #f8d7da; border: 1px solid #dc3545; border-radius: 5px; margin: 10px 0;">
+                        <h3>❌ Failed to Load Database</h3>
+                        <p>Error: ${error.message}</p>
+                        <p>Please check the database file and try again.</p>
+                    </div>
+                `;
+                stopAutoRefresh();
+            }
+        }
+        
+        function showGenerationControls(stats) {
+            // Check if controls already exist
+            let controlsDiv = document.getElementById('gen-range-controls');
+            if (!controlsDiv) {
+                // Create generation range controls
+                const fileSelector = document.querySelector('.file-selector');
+                controlsDiv = document.createElement('div');
+                controlsDiv.id = 'gen-range-controls';
+                controlsDiv.style.cssText = 'display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; padding: 10px; background-color: #e7f3ff; border-radius: 5px; border: 1px solid #b3d9ff;';
+                controlsDiv.innerHTML = `
+                    <span style="font-weight: bold; color: #0066cc;">📊 Large Dataset Mode</span>
+                    <span style="display: flex; align-items: center; gap: 5px;">
+                        <label>Gen Range:</label>
+                        <input type="number" id="gen-min" min="0" value="0" style="width: 60px; padding: 4px;">
+                        <span>to</span>
+                        <input type="number" id="gen-max" min="0" value="${stats.max_generation}" style="width: 60px; padding: 4px;">
+                        <button id="apply-gen-range" style="padding: 4px 12px; background: #0066cc; color: white; border: none; border-radius: 3px; cursor: pointer;">Apply</button>
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 5px; border-left: 1px solid #b3d9ff; padding-left: 10px;">
+                        <label>Top-k Paths:</label>
+                        <input type="number" id="top-k-input" min="1" max="100" value="5" style="width: 50px; padding: 4px;">
+                        <button id="load-top-k-paths" style="padding: 4px 12px; background: #ff8c00; color: white; border: none; border-radius: 3px; cursor: pointer;">Load k Best</button>
+                    </span>
+                    <button id="load-all-data" style="padding: 4px 8px; background: #6c757d; color: white; border: none; border-radius: 3px; cursor: pointer;">Load All (slow)</button>
+                    <span style="font-size: 11px; color: #666;">Total: ${stats.total_count} | Max Gen: ${stats.max_generation} | Correct: ${stats.correct_count || 'N/A'}</span>
+                `;
+                fileSelector.parentNode.insertBefore(controlsDiv, fileSelector.nextSibling);
+                
+                // Add event listeners
+                document.getElementById('apply-gen-range').addEventListener('click', () => {
+                    const minGen = parseInt(document.getElementById('gen-min').value) || 0;
+                    const maxGen = parseInt(document.getElementById('gen-max').value) || stats.max_generation;
+                    currentGenRange = { min: minGen, max: maxGen };
+                    loadDynamicData(window.currentDbPath, { min_gen: minGen, max_gen: maxGen });
+                });
+                
+                document.getElementById('load-top-k-paths').addEventListener('click', () => {
+                    const topK = parseInt(document.getElementById('top-k-input').value) || 5;
+                    loadDynamicData(window.currentDbPath, { top_k: topK });
+                });
+                
+                document.getElementById('load-all-data').addEventListener('click', () => {
+                    if (confirm(`This will load all ${stats.total_count} programs. This may be slow. Continue?`)) {
+                        currentLoadMode = 'full';
+                        loadFullData(window.currentDbPath);
+                    }
+                });
+            } else {
+                // Update existing controls
+                controlsDiv.style.display = 'flex';
+                document.getElementById('gen-max').value = stats.max_generation;
+            }
+        }
+        
+        function hideGenerationControls() {
+            const controlsDiv = document.getElementById('gen-range-controls');
+            if (controlsDiv) {
+                controlsDiv.style.display = 'none';
+            }
         }
 
         // Process the data and generate the tree
@@ -3356,30 +3618,42 @@ ${'='.repeat(80)}
                 // Set the best node (should already be correct since we filtered to correct nodes)
                 const bestNode = nodesWithBestScore[0];
                 
-                // Safety check: ensure the best node is actually correct
-                const bestNodeIsCorrect = bestNode && (bestNode.correct === true || bestNode.correct === 'true' || bestNode.correct === 1);
-                if (!bestNodeIsCorrect) {
-                    console.error("[DEBUG] ERROR: Best node is not marked as correct:", bestNode ? bestNode.id.substring(0, 8) : 'null', "correct:", bestNode ? bestNode.correct : 'N/A');
-                }
-                
-                if (correctValidNodes.length > 0) {
-                    console.log("[DEBUG] Using best correct node:", bestNode.id.substring(0, 8), "score:", bestNode.combined_score, "correct:", bestNode.correct);
+                // Handle case where no correct nodes exist - gracefully continue without best path highlighting
+                if (!bestNode) {
+                    console.warn("[DEBUG] No correct nodes found - visualization will show all nodes without best path highlighting");
+                    window.bestNodeId = null;
+                    window.bestScoreNodes = [];
+                    window.currentBestPathIndex = 0;
+                    window.allBestPaths = [];
+                    // Continue with rendering - the rest of renderGraph will handle null bestNodeId
                 } else {
-                    console.log("[DEBUG] Using best fallback node (no correct nodes available):", bestNode.id.substring(0, 8), "score:", bestNode.combined_score, "correct:", bestNode.correct);
+                    // Safety check: ensure the best node is actually correct
+                    const bestNodeIsCorrect = bestNode.correct === true || bestNode.correct === 'true' || bestNode.correct === 1;
+                    if (!bestNodeIsCorrect) {
+                        console.error("[DEBUG] ERROR: Best node is not marked as correct:", bestNode.id.substring(0, 8), "correct:", bestNode.correct);
+                    }
+                    
+                    if (correctValidNodes.length > 0) {
+                        console.log("[DEBUG] Using best correct node:", bestNode.id.substring(0, 8), "score:", bestNode.combined_score, "correct:", bestNode.correct);
+                    } else {
+                        console.log("[DEBUG] Using best fallback node (no correct nodes available):", bestNode.id.substring(0, 8), "score:", bestNode.combined_score, "correct:", bestNode.correct);
+                    }
+                    
+                    window.bestNodeId = bestNode.id;
+                    
+                    // Store information about multiple best paths (only correct nodes)
+                    window.bestScoreNodes = nodesWithBestScore;
+                    window.currentBestPathIndex = 0;
                 }
-                
-                window.bestNodeId = bestNode.id;
-                
-                // Store information about multiple best paths (only correct nodes)
-                window.bestScoreNodes = nodesWithBestScore;
-                window.currentBestPathIndex = 0;
 
                 let bestNodeD3 = null;
-                root.each(d => {
-                    if (d.data.id === window.bestNodeId) {
-                        bestNodeD3 = d;
-                    }
-                });
+                if (window.bestNodeId) {
+                    root.each(d => {
+                        if (d.data.id === window.bestNodeId) {
+                            bestNodeD3 = d;
+                        }
+                    });
+                }
 
                 const ancestorIds = new Set();
                 if (bestNodeD3 && window.bestNodeId) {
@@ -5957,7 +6231,15 @@ ${'='.repeat(80)}
                     .style("text-align", "center")
                     .style("color", "#666")
                     .style("margin-top", "50px")
-                    .text("No embedding data available for visualization.");
+                    .style("padding", "20px")
+                    .html(`
+                        <h3 style="color: #888; margin-bottom: 10px;">No Embedding Data Available</h3>
+                        <p>This evolution run does not have embeddings computed for the programs.</p>
+                        <p style="font-size: 12px; color: #999; margin-top: 10px;">
+                            Embeddings are computed when the evolution config enables embedding computation.<br>
+                            Try viewing the Tree View or other visualizations instead.
+                        </p>
+                    `);
                 return;
             }
             

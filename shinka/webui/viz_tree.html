@@ -2036,18 +2036,19 @@
                                     createClusterPlots(window.treeData);
                                 }
                             }, 100);
-                        } else if (tabId === 'metrics-view') {
-                            setTimeout(() => {
-                                if (window.treeData) {
-                                    // Force clear the metrics container before recreating
-                                    const metricsContainer = document.getElementById('metrics-plots');
-                                    if (metricsContainer) {
-                                        metricsContainer.innerHTML = '';
-                                    }
-                                    createMetricsVisualization(window.treeData);
-                                }
-                            }, 100);
+                } else if (tabId === 'metrics-view') {
+                    setTimeout(() => {
+                        if (window.treeData) {
+                            console.log("[DEBUG] Metrics tab clicked, creating visualization");
+                            // Force clear the metrics container before recreating
+                            const metricsContainer = document.getElementById('metrics-plots');
+                            if (metricsContainer) {
+                                metricsContainer.innerHTML = '';
+                            }
+                            createMetricsVisualization(window.treeData);
                         }
+                    }, 100);
+                }
                     });
                 });
 
@@ -2535,6 +2536,21 @@
             // Get subtree node IDs
             const subtreeNodeIds = focusNodeId ? new Set(getSubtreeNodes(focusNodeId).map(n => n.id)) : null;
             
+            // If score globals aren't set, recalculate them
+            if (window.minScoreGlobal === undefined || window.scoreRangeGlobal === undefined || window.scoreRangeGlobal === 0) {
+                console.warn('[DEBUG] Score globals not set in highlightFocusedSubtree, recalculating...');
+                const validScores = cosmographNodeData
+                    .filter(d => d.correct && d.combined_score !== null && !isNaN(d.combined_score))
+                    .map(d => d.combined_score);
+                window.minScoreGlobal = validScores.length > 0 ? Math.min(...validScores) : 0;
+                const maxScore = validScores.length > 0 ? Math.max(...validScores) : 1;
+                window.scoreRangeGlobal = (maxScore - window.minScoreGlobal) || 1;
+            }
+            
+            // Get score range for viridis colormap
+            const minScore = window.minScoreGlobal || 0;
+            const scoreRange = window.scoreRangeGlobal || 1;
+            
             // Update colors to highlight subtree
             const colors = new Float32Array(cosmographNodeData.length * 4);
             cosmographNodeData.forEach((node, i) => {
@@ -2553,25 +2569,39 @@
                     // Incorrect: red
                     r = 0.91; g = 0.30; b = 0.24;
                     a = inSubtree ? 0.8 : 0.2;
-                } else if (inSubtree) {
-                    // In subtree: use score-based coloring
+                } else {
+                    // Correct nodes: use viridis colormap (same as initial render)
                     const score = node.combined_score;
-                    const minScore = window.minScoreGlobal || 0;
-                    const scoreRange = window.scoreRangeGlobal || 1;
                     if (score !== null && !isNaN(score) && scoreRange > 0) {
                         const t = Math.max(0, Math.min(1, (score - minScore) / scoreRange));
-                        if (t < 0.5) {
-                            r = 0.27; g = 0.47 * (1 + t); b = 0.63;
+                        // Viridis colormap: purple (low) -> blue -> green -> yellow (high)
+                        if (t < 0.25) {
+                            const s = t / 0.25;
+                            r = 0.27 * (1 - s) + 0.28 * s;
+                            g = 0.00 * (1 - s) + 0.47 * s;
+                            b = 0.33 * (1 - s) + 0.63 * s;
+                        } else if (t < 0.5) {
+                            const s = (t - 0.25) / 0.25;
+                            r = 0.28 * (1 - s) + 0.13 * s;
+                            g = 0.47 * (1 - s) + 0.67 * s;
+                            b = 0.63 * (1 - s) + 0.55 * s;
+                        } else if (t < 0.75) {
+                            const s = (t - 0.5) / 0.25;
+                            r = 0.13 * (1 - s) + 0.55 * s;
+                            g = 0.67 * (1 - s) + 0.76 * s;
+                            b = 0.55 * (1 - s) + 0.22 * s;
                         } else {
-                            r = 0.55 + 0.44 * (t - 0.5) * 2; g = 0.76 + 0.15 * (t - 0.5) * 2; b = 0.22;
+                            const s = (t - 0.75) / 0.25;
+                            r = 0.55 * (1 - s) + 0.99 * s;
+                            g = 0.76 * (1 - s) + 0.91 * s;
+                            b = 0.22 * (1 - s) + 0.15 * s;
                         }
                     } else {
-                        r = 0.3; g = 0.6; b = 0.8;
+                        // Default purple (low score) for nodes without valid score
+                        r = 0.27; g = 0.00; b = 0.33;
                     }
-                } else {
-                    // Not in subtree: dim gray
-                    r = 0.4; g = 0.4; b = 0.4;
-                    a = 0.25;
+                    // Dim nodes outside subtree
+                    a = inSubtree ? 1.0 : 0.25;
                 }
                 
                 colors[i * 4] = r;
@@ -3744,6 +3774,7 @@ ${'='.repeat(80)}
         
         function loadDatabase(dbPath, options = {}) {
             console.log("[DEBUG] Attempting to load DB from:", dbPath);
+            console.log("[DEBUG] Current metrics plots before clearing:", document.getElementById("metrics-plots")?.children.length || 0);
 
             document.getElementById("node-summary").innerHTML = "";
             d3.selectAll('.node').classed('selected', false);
@@ -3762,6 +3793,40 @@ ${'='.repeat(80)}
             if (modelPosteriorsChart) {
                 modelPosteriorsChart.innerHTML = "";
             }
+            // Clear metrics plots when switching experiments
+            const metricsPlots = document.getElementById("metrics-plots");
+            if (metricsPlots) {
+                console.log("[DEBUG] Purging", metricsPlots.querySelectorAll('[id^="metric-plot-"]').length, "Plotly plots");
+                // Purge all Plotly plots before clearing
+                const plotDivs = metricsPlots.querySelectorAll('[id^="metric-plot-"]');
+                plotDivs.forEach(div => {
+                    if (typeof Plotly !== 'undefined') {
+                        try {
+                            Plotly.purge(div);
+                            console.log("[DEBUG] Purged plot:", div.id);
+                        } catch (e) {
+                            console.log("[DEBUG] Error purging plot:", e);
+                        }
+                    }
+                });
+                console.log("[DEBUG] Clearing innerHTML, current content:", metricsPlots.innerHTML.substring(0, 100));
+                
+                // Force complete recreation by removing and recreating the container
+                const parent = metricsPlots.parentNode;
+                const newMetricsPlots = document.createElement('div');
+                newMetricsPlots.id = 'metrics-plots';
+                newMetricsPlots.style.display = 'flex';
+                newMetricsPlots.style.flexDirection = 'column';
+                newMetricsPlots.style.gap = '20px';
+                parent.replaceChild(newMetricsPlots, metricsPlots);
+                
+                console.log("[DEBUG] Recreated metrics plots container");
+            }
+            // Clear clusters view
+            const clustersContainer = document.getElementById("clusters-container");
+            if (clustersContainer) {
+                clustersContainer.innerHTML = "";
+            }
 
 
             // Reset Pareto plot controls
@@ -3770,7 +3835,17 @@ ${'='.repeat(80)}
             const xSelect = document.getElementById('pareto-x-axis');
             if (ySelect) ySelect.innerHTML = '';
             if (xSelect) xSelect.innerHTML = '';
-
+            
+            // Clear the Pareto plot itself
+            const paretoPlot = document.getElementById('pareto-plot');
+            if (paretoPlot && typeof Plotly !== 'undefined') {
+                try {
+                    Plotly.purge(paretoPlot);
+                    console.log("[DEBUG] Purged Pareto plot");
+                } catch (e) {
+                    console.log("[DEBUG] Error purging Pareto plot:", e);
+                }
+            }
 
 
             window.currentDbPath = dbPath;
@@ -4175,15 +4250,21 @@ ${'='.repeat(80)}
                 if (activeLeftTabId === 'tree-view') {
                     document.getElementById("tree-legend").style.display = "block";
                     // Use updateCosmograph if the instance already exists (preserves camera/simulation state)
-                    // Use renderCosmograph only for initial creation
+                    // Use renderCosmograph only for initial creation OR when switching experiments
                     console.log("[DEBUG] Cosmograph render decision: isAutoRefreshing=", window.isAutoRefreshing, "cosmographInstance=", !!cosmographInstance);
-                    if (cosmographInstance) {
-                        // Cosmograph already exists - use incremental update to preserve view state
-                        console.log("[DEBUG] Using updateCosmograph (incremental) - preserving view state");
+                    if (cosmographInstance && window.isAutoRefreshing) {
+                        // Auto-refresh with existing instance - use incremental update to preserve view state
+                        console.log("[DEBUG] Using updateCosmograph (incremental) - preserving view state during auto-refresh");
                         updateCosmograph(data);
                     } else {
-                        // First time - create new Cosmograph
-                        console.log("[DEBUG] Using renderCosmograph (initial creation)");
+                        // First time OR experiment switch - force full re-render
+                        if (cosmographInstance && !window.isAutoRefreshing) {
+                            console.log("[DEBUG] Experiment switch detected - destroying old Cosmograph and creating new one");
+                            cosmographInstance.destroy();
+                            cosmographInstance = null;
+                        } else {
+                            console.log("[DEBUG] Using renderCosmograph (initial creation)");
+                        }
                         renderCosmograph(data);
                     }
                 } else {
@@ -4201,15 +4282,18 @@ ${'='.repeat(80)}
                         } else if (activeLeftTabId === 'clusters-view') {
                             createClusterPlots(data);
                         } else if (activeLeftTabId === 'metrics-view') {
+                            console.log("[DEBUG] Metrics view is active, refreshing it now");
                             createMetricsVisualization(data);
                         }
-                        
-                        // Also always refresh metrics in background for quick tab switching
-                        setTimeout(() => {
-                            createMetricsVisualization(data);
-                        }, 200);
                     }, 100);
                 }
+                
+                // Always refresh metrics in background for quick tab switching (even when tree-view is active)
+                console.log("[DEBUG] Scheduling background metrics refresh in 300ms");
+                setTimeout(() => {
+                    console.log("[DEBUG] Background metrics refresh executing now");
+                    createMetricsVisualization(data);
+                }, 300);
                 
                 // Store data refresh flag to ensure views update when switching tabs
                 window.dataRefreshed = true;
@@ -5608,8 +5692,21 @@ ${'='.repeat(80)}
                 return;
             }
             
+            // If score globals aren't set, recalculate them
+            if (window.minScoreGlobal === undefined || window.scoreRangeGlobal === undefined || window.scoreRangeGlobal === 0) {
+                console.warn('[DEBUG] Score globals not set in clearCosmographSelection, recalculating...');
+                const validScores = cosmographNodeData
+                    .filter(d => d.correct && d.combined_score !== null && !isNaN(d.combined_score))
+                    .map(d => d.combined_score);
+                window.minScoreGlobal = validScores.length > 0 ? Math.min(...validScores) : 0;
+                const maxScore = validScores.length > 0 ? Math.max(...validScores) : 1;
+                window.scoreRangeGlobal = (maxScore - window.minScoreGlobal) || 1;
+            }
+            
             const minScore = window.minScoreGlobal || 0;
             const scoreRange = window.scoreRangeGlobal || 1;
+            
+            console.log('[DEBUG] clearCosmographSelection using minScore:', minScore, 'scoreRange:', scoreRange);
             
             // Restore original colors - exact same logic as renderCosmograph
             const colors = new Float32Array(cosmographNodeData.length * 4);
@@ -11285,7 +11382,14 @@ ${'='.repeat(80)}
             createParetoPlot(paretoData, xMetric, yMetric);
         }
         function createMetricsVisualization(data) {
+            console.log("[DEBUG] ============ createMetricsVisualization called ============");
             console.log("[DEBUG] Creating metrics visualization with", data ? data.length : 0, "data points");
+            
+            try {
+                console.log("[DEBUG] Call stack:", new Error().stack.split('\n').slice(1, 4).join('\n'));
+            } catch (e) {
+                console.log("[DEBUG] Could not get call stack:", e);
+            }
             
             const metricsContainer = document.getElementById('metrics-plots');
             if (!metricsContainer) {
@@ -11293,16 +11397,22 @@ ${'='.repeat(80)}
                 return;
             }
             
+            console.log("[DEBUG] Metrics container found, current children:", metricsContainer.children.length);
             metricsContainer.innerHTML = ''; // Clear previous plots
             console.log("[DEBUG] Cleared metrics container");
 
             // Filter data to only include correct programs with scores
             const validData = data.filter(d => d.correct && d.combined_score !== null && !isNaN(d.combined_score));
             
+            console.log("[DEBUG] Filtered to", validData.length, "valid (correct) programs out of", data.length, "total");
+            
             if (validData.length === 0) {
-                metricsContainer.innerHTML = '<p>No valid programs with metrics found.</p>';
+                console.log("[DEBUG] No correct programs found, showing message");
+                metricsContainer.innerHTML = '<p style="padding: 20px; color: #666;">No correct programs with metrics found yet. Metrics will appear once programs pass evaluation.</p>';
                 return;
             }
+            
+            console.log("[DEBUG] Proceeding to create metrics plots...");
 
             // Group data by generation
             const generationData = {};
@@ -11315,6 +11425,7 @@ ${'='.repeat(80)}
             });
 
             const generations = Object.keys(generationData).map(Number).sort((a, b) => a - b);
+            console.log("[DEBUG] Grouped into", generations.length, "generations");
 
             // Helper function to get nested value from object
             const getNestedValue = (obj, path) => {
@@ -11351,7 +11462,10 @@ ${'='.repeat(80)}
 
             // Create plots in rows of 2
             const metricsArray = Array.from(allMetrics);
+            console.log("[DEBUG] Found", metricsArray.length, "metrics to plot:", metricsArray);
+            
             for (let i = 0; i < metricsArray.length; i += 2) {
+                console.log("[DEBUG] Creating row", Math.floor(i/2), "for metrics", i, "to", i+1);
                 // Create a row container
                 const rowContainer = document.createElement('div');
                 rowContainer.style.display = 'flex';
@@ -11580,6 +11694,7 @@ ${'='.repeat(80)}
                     });
                 });
             }
+            console.log("[DEBUG] ✅ Metrics visualization complete! Created plots for", metricsArray.length, "metrics");
         }
 
 

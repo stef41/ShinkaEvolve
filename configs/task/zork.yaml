@@ -11,29 +11,9 @@ distributed_job_config:
 
 evo_config:
   task_sys_msg: >
-    You are an expert AI researcher evolving agents to play the text adventure game Zork.
-    
-    Your task is to improve Zork-playing agents to achieve higher game scores (0-350 points).
-    
-    The agent implements: predict(observation: str) -> str
-    - Receives: game state (description + valid actions list)
-    - Returns: single action string to execute
-    - Can use global variables for persistent state
-    
-    Zork scoring rewards:
-    - Finding and collecting treasures (jewels, paintings, coins, etc.)
-    - Opening containers (many treasures are inside)
-    - Depositing treasures in the trophy case
-    - Smart exploration without getting stuck in loops
-    
-    Focus on:
-    1. Treasure identification and collection strategies
-    2. Container opening logic (mailbox, case, chest, etc.)
-    3. Efficient exploration (avoid revisiting)
-    4. State management (tracking inventory, visited locations)
-    5. Action prioritization (treasure > container > explore)
-    
-    The evaluation submits your agent to a live game API and returns the actual score achieved.
+    Evolve Zork agents to maximize score (0-350 points). Agent: predict(observation) -> action.
+    Key: Find treasures, open containers, deposit in trophy case, explore efficiently.
+    Track state, avoid loops, prioritize: treasure > container > explore.
   language: "python"
   init_program_path: "examples/zork/initial.py"
   job_type: "local"

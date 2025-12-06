@@ -193,22 +193,26 @@ def query(
     **kwargs,
 ) -> QueryResult:
     """Query the LLM."""
-    client, model_name = get_client_llm(
+    # Check if custom base URL is provided (indicates OpenAI-compatible endpoint)
+    has_custom_base_url = "@" in model_name
+    
+    client, parsed_model_name = get_client_llm(
         model_name, structured_output=output_model is not None
     )
-    if model_name in CLAUDE_MODELS.keys() or "anthropic" in model_name:
+    if parsed_model_name in CLAUDE_MODELS.keys() or "anthropic" in parsed_model_name:
         query_fn = query_anthropic
-    elif model_name in OPENAI_MODELS.keys():
+    elif parsed_model_name in OPENAI_MODELS.keys() or has_custom_base_url:
+        # Custom base URLs are OpenAI-compatible
         query_fn = query_openai
-    elif model_name in DEEPSEEK_MODELS.keys():
+    elif parsed_model_name in DEEPSEEK_MODELS.keys():
         query_fn = query_deepseek
-    elif model_name in GEMINI_MODELS.keys():
+    elif parsed_model_name in GEMINI_MODELS.keys():
         query_fn = query_gemini
     else:
-        raise ValueError(f"Model {model_name} not supported.")
+        raise ValueError(f"Model {parsed_model_name} not supported.")
     result = query_fn(
         client,
-        model_name,
+        parsed_model_name,
         msg,
         system_msg,
         msg_history,

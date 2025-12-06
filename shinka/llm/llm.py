@@ -206,7 +206,9 @@ class LLMClient:
 
     def get_kwargs(self):
         posterior = self.llm_selection.posterior()
-        if self.verbose:
+        # Skip verbose logging for QueueSampler to reduce overhead
+        from .dynamic_sampling import QueueSampler
+        if self.verbose and not isinstance(self.llm_selection, QueueSampler):
             lines = ["==> SAMPLING:"]
             for name, prob in zip(self.model_names, posterior):
                 lines.append(f"  {name:<30} {prob:>8.4f}")
@@ -442,7 +444,9 @@ class AsyncLLMClient:
 
     def get_kwargs(self):
         posterior = self.llm_selection.posterior()
-        if self.verbose:
+        # Skip verbose logging for QueueSampler to reduce overhead
+        from .dynamic_sampling import QueueSampler
+        if self.verbose and not isinstance(self.llm_selection, QueueSampler):
             lines = ["==> SAMPLING:"]
             for name, prob in zip(self.model_names, posterior):
                 lines.append(f"  {name:<30} {prob:>8.4f}")
@@ -762,7 +766,9 @@ class AsyncLLMClient:
 
     def get_kwargs(self):
         posterior = self.llm_selection.posterior()
-        if self.verbose:
+        # Skip verbose logging for QueueSampler to reduce overhead
+        from .dynamic_sampling import QueueSampler
+        if self.verbose and not isinstance(self.llm_selection, QueueSampler):
             lines = ["==> SAMPLING:"]
             for name, prob in zip(self.model_names, posterior):
                 lines.append(f"  {name:<30} {prob:>8.4f}")
@@ -1082,7 +1088,9 @@ class AsyncLLMClient:
 
     def get_kwargs(self):
         posterior = self.llm_selection.posterior()
-        if self.verbose:
+        # Skip verbose logging for QueueSampler to reduce overhead
+        from .dynamic_sampling import QueueSampler
+        if self.verbose and not isinstance(self.llm_selection, QueueSampler):
             lines = ["==> SAMPLING:"]
             for name, prob in zip(self.model_names, posterior):
                 lines.append(f"  {name:<30} {prob:>8.4f}")

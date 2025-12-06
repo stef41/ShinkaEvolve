@@ -1,5 +1,5 @@
 """
-Zork evaluator for ShinkaEvolve - simplified version compatible with eval_hydra.py
+Zork evaluator for ShinkaEvolve - supports both MIND API and local evaluation
 """
 
 import os
@@ -10,13 +10,173 @@ from typing import Dict, Any, Tuple
 from pathlib import Path
 
 
+def evaluate_zork_local(program_path: str, results_dir: str) -> Dict[str, Any]:
+    """
+    Evaluate Zork agent locally using Frotz directly (faster, no MIND API queue).
+    
+    Args:
+        program_path: Path to the agent code file
+        results_dir: Directory for results
+    
+    Returns:
+        Dict with score and other metrics
+    """
+    import json
+    import subprocess
+    import importlib.util
+    from pathlib import Path
+    
+    results_path = Path(results_dir)
+    results_path.mkdir(parents=True, exist_ok=True)
+    
+    result = {'game_score': 0.0, 'combined_score': 0.0, 'success': False}
+    
+    try:
+        # Import the agent module
+        spec = importlib.util.spec_from_file_location("solution", program_path)
+        solution = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(solution)
+        
+        # Get Zork game file (download if needed)
+        import tempfile
+        import urllib.request
+        zork_url = "https://github.com/BYU-PCCL/z-machine-games/raw/master/jericho-game-suite/zork1.z5"
+        
+        # Try pre-installed location first
+        gamefile = '/usr/local/share/jericho_games/zork1.z5'
+        if not os.path.exists(gamefile):
+            # Use temp cache
+            cache_dir = os.path.join(tempfile.gettempdir(), '.jericho_games')
+            os.makedirs(cache_dir, exist_ok=True)
+            gamefile = os.path.join(cache_dir, 'zork1.z5')
+            
+            # Download if not cached
+            if not os.path.exists(gamefile):
+                print(f"📥 Downloading Zork game file...")
+                urllib.request.urlretrieve(zork_url, gamefile)
+                print(f"✅ Downloaded to {gamefile}")
+        
+        # Run 100 episodes locally
+        from jericho import FrotzEnv
+        env = FrotzEnv(gamefile)
+        
+        total_score = 0
+        num_episodes = 100
+        max_steps = 100
+        
+        print(f"🎮 Running {num_episodes} episodes locally...")
+        
+        for ep in range(num_episodes):
+            obs, info = env.reset()
+            
+            # Check if solution has ZorkAgent class or predict function
+            if hasattr(solution, 'ZorkAgent'):
+                agent = solution.ZorkAgent()
+                get_action = lambda obs, score, done: agent.act(obs, score, done)
+            elif hasattr(solution, 'predict'):
+                get_action = lambda obs, score, done: solution.predict(obs)
+            else:
+                raise AttributeError("Solution must have either ZorkAgent class or predict() function")
+            
+            done = False
+            steps = 0
+            
+            while not done and steps < max_steps:
+                try:
+                    action = get_action(obs, info.get('score', 0), done)
+                    obs, reward, done, info = env.step(action)
+                    steps += 1
+                except Exception as e:
+                    print(f"Episode {ep+1} error: {e}")
+                    break
+            
+            episode_score = info.get('score', 0)
+            total_score += episode_score
+            
+            if (ep + 1) % 10 == 0:
+                avg_so_far = total_score / (ep + 1)
+                print(f"  Episodes {ep+1}/{num_episodes}, avg score: {avg_so_far:.2f}")
+        
+        avg_score = total_score / num_episodes
+        print(f"✅ Local evaluation complete: {avg_score:.2f}/350")
+        
+        # Read code size
+        with open(program_path, 'r') as f:
+            code = f.read()
+        
+        result = {
+            'game_score': avg_score,
+            'combined_score': avg_score,
+            'success': True,
+            'code_size': len(code),
+            'compressed_code_size': len(code),  # No compression in local mode
+            'tmp_size': 0,
+            'execution_time': 0,
+        }
+        
+    except Exception as e:
+        print(f"❌ Local evaluation error: {e}")
+        result['error'] = str(e)
+        result['success'] = False
+    
+    # Save metrics.json
+    metrics = {
+        'combined_score': result['combined_score'],
+        'game_score': result['game_score'],
+        'code_size': result.get('code_size', 0),
+        'compressed_code_size': result.get('compressed_code_size', 0),
+        'tmp_size': result.get('tmp_size', 0),
+    }
+    metrics_file = results_path / 'metrics.json'
+    with open(metrics_file, 'w') as f:
+        json.dump(metrics, f, indent=2)
+    
+    # Save correct.json
+    correct_data = {'correct': result.get('success', False)}
+    correct_file = results_path / 'correct.json'
+    with open(correct_file, 'w') as f:
+        json.dump(correct_data, f, indent=2)
+    
+    return result
+
+
 def evaluate_zork_agent(program_path: str, results_dir: str) -> Dict[str, Any]:
     """
     Main evaluation function called by ShinkaEvolve's eval_hydra.py.
     
+    Supports two modes:
+    - MIND API mode: Submit to MIND benchmark (official scoring, queue-based)
+    - Local mode: Run Frotz directly (faster, no queue wait)
+    
+    Mode is selected via environment variables:
+    - EVAL_MODE: "mind_api" or "local" (default: "mind_api")
+    - MIND_API_URL: MIND API endpoint (default: "http://localhost:8002")
+    - BENCHMARK_ID: Benchmark ID (default: 4)
+    
     Args:
         program_path: Path to the agent code file
-        results_dir: Directory for results (not used, but required by interface)
+        results_dir: Directory for results
+    
+    Returns:
+        Dict with score and other metrics
+    """
+    eval_mode = os.environ.get("EVAL_MODE", "mind_api").lower()
+    
+    if eval_mode == "local":
+        print(f"🔧 Using LOCAL evaluation mode (Frotz direct)")
+        return evaluate_zork_local(program_path, results_dir)
+    else:
+        print(f"🌐 Using MIND API evaluation mode")
+        return evaluate_zork_mind_api(program_path, results_dir)
+
+
+def evaluate_zork_mind_api(program_path: str, results_dir: str) -> Dict[str, Any]:
+    """
+    Evaluate using MIND API (queue-based, official scoring).
+    
+    Args:
+        program_path: Path to the agent code file
+        results_dir: Directory for results
     
     Returns:
         Dict with score and other metrics
@@ -25,7 +185,7 @@ def evaluate_zork_agent(program_path: str, results_dir: str) -> Dict[str, Any]:
     from pathlib import Path
     
     API_URL = os.environ.get("MIND_API_URL", "http://localhost:8002")
-    BENCHMARK_ID = 4
+    BENCHMARK_ID = int(os.environ.get("BENCHMARK_ID", "4"))
     
     # Create results directory
     results_path = Path(results_dir)

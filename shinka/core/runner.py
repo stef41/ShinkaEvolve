@@ -3,6 +3,9 @@ import uuid
 import time
 import logging
 import yaml
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
 from rich.logging import RichHandler
 from rich.table import Table
 from rich.console import Console
@@ -20,6 +23,7 @@ from shinka.llm import (
     EmbeddingClient,
     BanditBase,
     AsymmetricUCB,
+    QueueSampler,
 )
 from shinka.edit import (
     apply_diff_patch,
@@ -49,6 +53,7 @@ class EvolutionConfig:
     llm_models: List[str] = field(default_factory=lambda: ["azure-gpt-4.1-mini"])
     llm_dynamic_selection: Optional[Union[str, BanditBase]] = None
     llm_dynamic_selection_kwargs: dict = field(default_factory=lambda: {})
+    disable_model_posteriors: bool = False
     llm_kwargs: dict = field(default_factory=lambda: {})
     meta_rec_interval: Optional[int] = None
     meta_llm_models: Optional[List[str]] = None
@@ -62,6 +67,11 @@ class EvolutionConfig:
     novelty_llm_models: Optional[List[str]] = None
     novelty_llm_kwargs: dict = field(default_factory=lambda: {})
     use_text_feedback: bool = False
+    # Evaluation configuration
+    eval_mode: str = "mind_api"  # "mind_api" or "local"
+    mind_api_url: str = "http://localhost:8002"
+    benchmark_id: int = 4
+    max_eval_fix_attempts: int = 3  # Number of times to retry fixing crashed evaluations
 
 
 @dataclass
@@ -99,6 +109,18 @@ class EvolutionRunner:
         self.job_config = job_config
         self.db_config = db_config
         self.verbose = verbose
+
+        # Set evaluation environment variables (inherited by all subprocess jobs)
+        import os
+        os.environ["EVAL_MODE"] = evo_config.eval_mode
+        os.environ["MIND_API_URL"] = evo_config.mind_api_url
+        os.environ["BENCHMARK_ID"] = str(evo_config.benchmark_id)
+        
+        if self.verbose:
+            logger.info(f"Evaluation mode: {evo_config.eval_mode}")
+            if evo_config.eval_mode == "mind_api":
+                logger.info(f"MIND API URL: {evo_config.mind_api_url}")
+                logger.info(f"Benchmark ID: {evo_config.benchmark_id}")
 
         print_gradient_logo((255, 0, 0), (255, 255, 255))
         if evo_config.results_dir is None:
@@ -142,7 +164,14 @@ class EvolutionRunner:
             resuming_run = True
 
         # Initialize LLM selection strategy
-        if evo_config.llm_dynamic_selection is None:
+        if evo_config.disable_model_posteriors:
+            # Use simple queue-based round-robin sampler (no posterior updates)
+            self.llm_selection = QueueSampler(
+                arm_names=evo_config.llm_models,
+            )
+            if self.verbose:
+                logger.info("Using QueueSampler (no model posteriors) for maximum LLM utilization")
+        elif evo_config.llm_dynamic_selection is None:
             self.llm_selection = None
         elif isinstance(evo_config.llm_dynamic_selection, BanditBase):
             self.llm_selection = evo_config.llm_dynamic_selection
@@ -309,11 +338,16 @@ class EvolutionRunner:
         logger.info(f"Experiment configuration saved to {config_path}")
 
     def run(self):
-        """Run evolution with parallel job queue."""
+        """Run evolution with parallel job queue and parallel LLM generation."""
         max_jobs = self.evo_config.max_parallel_jobs
         target_gens = self.evo_config.num_generations
+        
+        # Use up to max_jobs parallel LLM threads for patch generation
+        num_llm_threads = min(max_jobs, 8)  # Cap at 8 parallel LLM calls
+        
         logger.info(
-            f"Starting evolution with {max_jobs} parallel jobs, "
+            f"Starting evolution with {max_jobs} parallel eval jobs, "
+            f"{num_llm_threads} parallel LLM threads, "
             f"target: {target_gens} generations"
         )
 
@@ -328,44 +362,90 @@ class EvolutionRunner:
         # Now start parallel execution for remaining generations
         if self.completed_generations < target_gens:
             logger.info("Starting parallel execution for remaining generations...")
-
-            # Main loop: monitor jobs and submit new ones
-            while (
-                self.completed_generations < target_gens or len(self.running_jobs) > 0
-            ):
-                # Check for completed jobs
-                completed_jobs = self._check_completed_jobs()
-
-                # Process completed jobs
-                if completed_jobs:
-                    for job in completed_jobs:
-                        self._process_completed_job(job)
-
-                    # Update completed generations count
-                    self._update_completed_generations()
-
-                    if self.verbose:
-                        logger.info(
-                            f"Processed {len(completed_jobs)} jobs. "
-                            f"Total completed generations: "
-                            f"{self.completed_generations}/{target_gens}"
-                        )
-
-                # Check if we've completed all generations
-                if self.completed_generations >= target_gens:
-                    logger.info("All generations completed, exiting...")
-                    break
-
-                # Submit new jobs to fill the queue (only if we have capacity)
-                # Fill queue completely instead of one at a time
+            
+            # Thread-safe queue for generated jobs ready to be submitted
+            self._generated_jobs_queue: Queue = Queue()
+            
+            # Lock for thread-safe access to shared state  
+            self._submit_lock = threading.Lock()
+            
+            # Track pending LLM generation futures
+            pending_llm_futures = []
+            
+            # Use ThreadPoolExecutor for parallel LLM patch generation
+            with ThreadPoolExecutor(max_workers=num_llm_threads) as llm_executor:
+                # Main loop: monitor jobs and submit new ones
                 while (
-                    len(self.running_jobs) < max_jobs
-                    and self.next_generation_to_submit < target_gens
+                    self.completed_generations < target_gens 
+                    or len(self.running_jobs) > 0
+                    or len(pending_llm_futures) > 0
                 ):
-                    self._submit_new_job()
+                    # Check for completed LLM generation futures and handle exceptions
+                    done_futures = []
+                    for future in pending_llm_futures:
+                        if future.done():
+                            done_futures.append(future)
+                            try:
+                                future.result()  # Raise any exceptions
+                            except Exception as e:
+                                logger.error(f"LLM generation failed: {e}")
+                    for f in done_futures:
+                        pending_llm_futures.remove(f)
+                    
+                    # Move generated jobs from queue to running_jobs
+                    while not self._generated_jobs_queue.empty():
+                        try:
+                            running_job = self._generated_jobs_queue.get_nowait()
+                            self.running_jobs.append(running_job)
+                        except Exception:
+                            break
+                    
+                    # Check for completed eval jobs
+                    completed_jobs = self._check_completed_jobs()
 
-                # Wait a bit before checking again
-                time.sleep(2)
+                    # Process completed jobs
+                    if completed_jobs:
+                        for job in completed_jobs:
+                            self._process_completed_job(job)
+
+                        # Update completed generations count
+                        self._update_completed_generations()
+
+                        if self.verbose:
+                            logger.info(
+                                f"Processed {len(completed_jobs)} jobs. "
+                                f"Total completed generations: "
+                                f"{self.completed_generations}/{target_gens}"
+                            )
+
+                    # Check if we've completed all generations
+                    if self.completed_generations >= target_gens:
+                        logger.info("All generations completed, exiting...")
+                        break
+
+                    # Submit new LLM generation jobs in parallel
+                    # We want: running_jobs + pending_llm_futures to not exceed max_jobs
+                    total_in_flight = len(self.running_jobs) + len(pending_llm_futures)
+                    while (
+                        total_in_flight < max_jobs
+                        and self.next_generation_to_submit < target_gens
+                    ):
+                        # Reserve the generation number atomically
+                        with self._submit_lock:
+                            gen_to_submit = self.next_generation_to_submit
+                            if gen_to_submit >= target_gens:
+                                break
+                            self.next_generation_to_submit += 1
+                        
+                        # Submit LLM generation to thread pool
+                        future = llm_executor.submit(
+                            self._generate_and_queue_job, gen_to_submit
+                        )
+                        pending_llm_futures.append(future)
+                        total_in_flight += 1
+
+                    # Wait a bit before checking again
+                    time.sleep(0.5)  # Reduced from 2s for faster response
 
             # All jobs are now handled by the main loop above
 
@@ -631,6 +711,169 @@ class EvolutionRunner:
 
         self.completed_generations = completed_up_to
 
+    def _create_thread_local_db(self) -> ProgramDatabase:
+        """Create a new database connection for thread-local use."""
+        # Create a new ProgramDatabase instance with the same config
+        # This gives us a separate connection/cursor per thread
+        thread_db = ProgramDatabase(
+            config=self.db.config,
+            embedding_model=self.db.embedding_client.model_name if self.db.embedding_client else "local:all-MiniLM-L6-v2",
+            read_only=False,
+        )
+        return thread_db
+
+    def _generate_and_queue_job(self, current_gen: int):
+        """
+        Generate code for a job using LLM (thread-safe).
+        This method creates its own database connection for thread safety.
+        """
+        if current_gen >= self.evo_config.num_generations:
+            return
+
+        # Create thread-local database connection
+        thread_db = self._create_thread_local_db()
+        
+        try:
+            exec_fname = (
+                f"{self.results_dir}/{FOLDER_PREFIX}_{current_gen}/main.{self.lang_ext}"
+            )
+            results_dir = f"{self.results_dir}/{FOLDER_PREFIX}_{current_gen}/results"
+            Path(results_dir).mkdir(parents=True, exist_ok=True)
+
+            # Get current meta-recommendations for this job (thread-safe read)
+            meta_recs, meta_summary, meta_scratch = self.meta_summarizer.get_current()
+
+            # Sample parent and inspiration programs using thread-local DB
+            api_costs = 0
+            embed_cost = 0
+            novelty_cost = 0.0
+            novelty_checks_performed = 0
+            code_embedding = None
+            novelty_explanation = ""
+            
+            # Loop over novelty attempts
+            for nov_attempt in range(self.evo_config.max_novelty_attempts):
+                # Loop over patch resamples - including parents
+                for resample in range(self.evo_config.max_patch_resamples):
+                    (
+                        parent_program,
+                        archive_programs,
+                        top_k_programs,
+                    ) = thread_db.sample(
+                        target_generation=current_gen,
+                        novelty_attempt=nov_attempt + 1,
+                        max_novelty_attempts=self.evo_config.max_novelty_attempts,
+                        resample_attempt=resample + 1,
+                        max_resample_attempts=self.evo_config.max_patch_resamples,
+                    )
+                    archive_insp_ids = [p.id for p in archive_programs]
+                    top_k_insp_ids = [p.id for p in top_k_programs]
+                    parent_id = parent_program.id
+                    
+                    # Run patch (LLM query - thread-safe)
+                    code_diff, meta_patch_data, num_applied_attempt = self.run_patch(
+                        parent_program,
+                        archive_programs,
+                        top_k_programs,
+                        current_gen,
+                        novelty_attempt=nov_attempt + 1,
+                        resample_attempt=resample + 1,
+                    )
+                    api_costs += meta_patch_data["api_costs"]
+                    if (
+                        meta_patch_data["error_attempt"] is None
+                        and num_applied_attempt > 0
+                    ):
+                        meta_patch_data["api_costs"] = api_costs
+                        break
+
+                # Get the code embedding for the evaluated code
+                code_embedding, e_cost = self.get_code_embedding(exec_fname)
+                embed_cost += e_cost
+
+                if not code_embedding:
+                    self.novelty_judge.log_novelty_skip_message("no embedding")
+                    break
+
+                # Use NoveltyJudge for novelty assessment with rejection sampling
+                if self.novelty_judge.should_check_novelty(
+                    code_embedding, current_gen, parent_program, thread_db
+                ):
+                    should_accept, novelty_metadata = (
+                        self.novelty_judge.assess_novelty_with_rejection_sampling(
+                            exec_fname, code_embedding, parent_program, thread_db
+                        )
+                    )
+
+                    # Update costs and metadata from novelty assessment
+                    novelty_cost += novelty_metadata.get("novelty_total_cost", 0.0)
+                    novelty_checks_performed = novelty_metadata.get(
+                        "novelty_checks_performed", 0
+                    )
+                    novelty_explanation = novelty_metadata.get(
+                        "novelty_explanation", ""
+                    )
+
+                    if should_accept:
+                        break
+                else:
+                    if not thread_db.island_manager or not hasattr(
+                        thread_db.island_manager, "are_all_islands_initialized"
+                    ):
+                        self.novelty_judge.log_novelty_skip_message("no island manager")
+                    elif not thread_db.island_manager.are_all_islands_initialized():
+                        self.novelty_judge.log_novelty_skip_message(
+                            "not all islands initialized yet"
+                        )
+                    break
+
+            # Add meta-recommendations/summary/scratchpad to meta_patch_data
+            if meta_recs is not None:
+                meta_patch_data["meta_recommendations"] = meta_recs
+                meta_patch_data["meta_summary"] = meta_summary
+                meta_patch_data["meta_scratch_pad"] = meta_scratch
+
+            # Add novelty check information to meta_patch_data
+            if novelty_checks_performed > 0:
+                meta_patch_data["novelty_checks_performed"] = novelty_checks_performed
+                meta_patch_data["novelty_cost"] = novelty_cost
+                meta_patch_data["novelty_explanation"] = novelty_explanation
+
+            # Submit the job asynchronously (scheduler is thread-safe)
+            job_id = self.scheduler.submit_async(exec_fname, results_dir)
+
+            # Create the running job
+            running_job = RunningJob(
+                job_id=job_id,
+                exec_fname=exec_fname,
+                results_dir=results_dir,
+                start_time=time.time(),
+                generation=current_gen,
+                parent_id=parent_id,
+                archive_insp_ids=archive_insp_ids,
+                top_k_insp_ids=top_k_insp_ids,
+                code_diff=code_diff,
+                meta_patch_data=meta_patch_data,
+                code_embedding=code_embedding,
+                embed_cost=embed_cost,
+                novelty_cost=novelty_cost,
+            )
+            
+            # Queue the job for the main thread to track
+            self._generated_jobs_queue.put(running_job)
+
+            if self.verbose:
+                logger.info(
+                    f"Generated and queued job for generation {current_gen}"
+                )
+        finally:
+            # Close thread-local database connection
+            if thread_db.conn:
+                try:
+                    thread_db.conn.close()
+                except Exception:
+                    pass
+
     def _submit_new_job(self):
         """Submit a new job to the queue."""
         current_gen = self.next_generation_to_submit
@@ -796,6 +1039,75 @@ class EvolutionRunner:
         self.running_jobs = still_running
         return completed
 
+    def _fix_crashed_evaluation(
+        self, code: str, error_msg: str, stdout_log: str, stderr_log: str
+    ) -> Optional[str]:
+        """
+        Ask LLM to fix code that crashed during evaluation.
+        
+        Args:
+            code: The code that crashed
+            error_msg: Error message from the crash
+            stdout_log: Stdout from the evaluation
+            stderr_log: Stderr from the evaluation
+            
+        Returns:
+            Fixed code or None if fix failed
+        """
+        fix_prompt = f"""The following code crashed during evaluation with this error:
+
+ERROR: {error_msg}
+
+STDERR:
+{stderr_log[-2000:] if len(stderr_log) > 2000 else stderr_log}
+
+STDOUT:
+{stdout_log[-1000:] if len(stdout_log) > 1000 else stdout_log}
+
+CODE:
+```{self.evo_config.language}
+{code}
+```
+
+Please fix the code to resolve this error. Common issues:
+- Using __slots__ with class variables (conflicts) - remove class variables and initialize in __init__
+- Missing imports
+- Syntax errors
+- Type errors
+
+Return ONLY the fixed code wrapped in ```{self.evo_config.language} and ``` markers.
+Do not include explanations outside the code block."""
+
+        try:
+            response = self.llm.query(
+                msg=fix_prompt,
+                system_msg="You are a Python debugging expert. Fix code errors precisely and concisely.",
+                llm_kwargs={"temperature": 0.3, "max_tokens": 4096},
+            )
+            
+            if not response or not response.content:
+                logger.warning("LLM returned empty response for code fix")
+                return None
+                
+            # Extract code from response
+            fixed_code = extract_between(
+                response.content,
+                f"```{self.evo_config.language}",
+                "```",
+                include_delimiter=False,
+            )
+            
+            if not fixed_code:
+                logger.warning("Could not extract fixed code from LLM response")
+                return None
+                
+            logger.info(f"LLM fix generated (cost: ${response.cost:.4f})")
+            return fixed_code.strip()
+            
+        except Exception as e:
+            logger.error(f"Error generating code fix: {e}")
+            return None
+
     def _process_completed_job(self, job: RunningJob):
         """Process a completed job and add results to database."""
         end_time = time.time()
@@ -832,6 +1144,154 @@ class EvolutionRunner:
             stderr_log = results.get("stderr_log", "")
 
         combined_score = metrics_val.get("combined_score", 0.0)
+        
+        # Check if evaluation crashed and attempt to fix
+        eval_crashed = False
+        crash_error = ""
+        
+        # Detect crashes in multiple ways:
+        # 1. Explicit evaluation failure (score=0, correct=False, has errors)
+        # 2. Repeated episode errors (runtime errors in stdout even if marked correct)
+        log_text = (stdout_log + "\n" + stderr_log).lower()
+        
+        # Count episode errors (e.g., "Episode 1 error:", "Episode 2 error:")
+        episode_error_count = log_text.count("episode") and log_text.count("error:")
+        has_many_episode_errors = episode_error_count > 10  # More than 10 episode errors
+        
+        # Check for error patterns
+        error_patterns = [
+            "Error:", "Exception:", "Traceback", "error:", 
+            "__slots__", "SyntaxError", "ImportError", "AttributeError",
+            "TypeError", "NameError", "ValueError", "crashed", "is not defined"
+        ]
+        
+        has_errors = any(pattern.lower() in log_text for pattern in error_patterns)
+        
+        # Crash if: (score=0 AND errors) OR (many episode errors regardless of correct flag)
+        if (combined_score == 0.0 and has_errors) or has_many_episode_errors:
+            eval_crashed = True
+            
+            # Extract error message from logs
+            if "❌" in stdout_log:
+                crash_error = stdout_log.split("❌")[-1].strip()[:500]
+            elif "is not defined" in log_text:
+                # Extract the "name 'X' is not defined" error
+                lines = (stdout_log + "\n" + stderr_log).split('\n')
+                for line in lines:
+                    if "is not defined" in line.lower():
+                        crash_error = line.strip()
+                        break
+            elif "Error:" in stderr_log:
+                crash_error = stderr_log.split("Error:")[-1].strip()[:500]
+            elif "Exception:" in stderr_log:
+                crash_error = stderr_log.split("Exception:")[-1].strip()[:500]
+            elif "error:" in stdout_log.lower():
+                # Find first error line
+                lines = stdout_log.split('\n')
+                for line in lines:
+                    if "error:" in line.lower():
+                        crash_error = line.strip()
+                        break
+            else:
+                crash_error = (stderr_log + stdout_log)[-500:]
+        
+        # Attempt to fix crashed evaluations
+        if eval_crashed and self.evo_config.max_eval_fix_attempts > 0:
+            logger.warning(
+                f"⚠️  Evaluation crashed for gen {job.generation}: {crash_error[:100]}"
+            )
+            logger.info(f"🔧 Attempting to fix code (up to {self.evo_config.max_eval_fix_attempts} attempts)...")
+            
+            current_code = evaluated_code
+            for attempt in range(self.evo_config.max_eval_fix_attempts):
+                logger.info(f"   Fix attempt {attempt + 1}/{self.evo_config.max_eval_fix_attempts}")
+                
+                # Ask LLM to fix the code
+                fixed_code = self._fix_crashed_evaluation(
+                    current_code, crash_error, stdout_log, stderr_log
+                )
+                
+                if not fixed_code:
+                    logger.warning(f"   Fix attempt {attempt + 1} failed: LLM couldn't generate fix")
+                    continue
+                
+                # Write fixed code to file
+                try:
+                    Path(job.exec_fname).write_text(fixed_code, encoding="utf-8")
+                    logger.info(f"   Written fixed code to {job.exec_fname}")
+                except Exception as e:
+                    logger.error(f"   Failed to write fixed code: {e}")
+                    continue
+                
+                # Re-run evaluation
+                logger.info(f"   Re-running evaluation...")
+                job_id = self.scheduler.submit_async(job.exec_fname, job.results_dir)
+                
+                # Wait for completion (synchronous re-evaluation)
+                retry_job = RunningJob(
+                    job_id=job_id,
+                    exec_fname=job.exec_fname,
+                    results_dir=job.results_dir,
+                    start_time=time.time(),
+                    generation=job.generation,
+                    parent_id=job.parent_id,
+                    archive_insp_ids=job.archive_insp_ids,
+                    top_k_insp_ids=job.top_k_insp_ids,
+                    code_diff=job.code_diff,
+                    meta_patch_data=job.meta_patch_data,
+                    code_embedding=job.code_embedding,
+                    embed_cost=job.embed_cost,
+                    novelty_cost=job.novelty_cost,
+                )
+                
+                # Poll until job completes
+                while self.scheduler.check_job_status(retry_job):
+                    time.sleep(2)
+                
+                # Get new results
+                retry_results = self.scheduler.get_job_results(job_id, job.results_dir)
+                
+                if retry_results:
+                    retry_correct = retry_results.get("correct", {}).get("correct", False)
+                    retry_metrics = retry_results.get("metrics", {})
+                    retry_score = retry_metrics.get("combined_score", 0.0)
+                    retry_stdout = retry_results.get("stdout_log", "")
+                    retry_stderr = retry_results.get("stderr_log", "")
+                    
+                    # Check if fix resolved the crash
+                    retry_crashed = False
+                    if retry_score == 0.0 and not retry_correct and (retry_stderr or retry_stdout):
+                        for pattern in error_patterns:
+                            if pattern.lower() in (retry_stdout + retry_stderr).lower():
+                                retry_crashed = True
+                                if "❌" in retry_stdout:
+                                    crash_error = retry_stdout.split("❌")[-1].strip()[:500]
+                                break
+                    
+                    if not retry_crashed:
+                        # Success! Use the fixed results
+                        logger.info(f"✅ Fix attempt {attempt + 1} succeeded! Score: {retry_score}")
+                        evaluated_code = fixed_code
+                        correct_val = retry_correct
+                        metrics_val = retry_metrics
+                        combined_score = retry_score
+                        stdout_log = retry_stdout
+                        stderr_log = retry_stderr
+                        eval_crashed = False
+                        break
+                    else:
+                        logger.warning(f"   Fix attempt {attempt + 1} still crashes: {crash_error[:100]}")
+                        current_code = fixed_code  # Use this as base for next fix attempt
+                        stdout_log = retry_stdout
+                        stderr_log = retry_stderr
+                else:
+                    logger.warning(f"   Fix attempt {attempt + 1} failed: no results returned")
+            
+            if eval_crashed:
+                logger.error(f"❌ All {self.evo_config.max_eval_fix_attempts} fix attempts failed. Discarding program.")
+                # Don't store crashed programs - just return without adding to database
+                return
+        
         public_metrics = metrics_val.get("public", {})
         private_metrics = metrics_val.get("private", {})
         text_feedback = metrics_val.get("text_feedback", "")
@@ -977,6 +1437,15 @@ class EvolutionRunner:
 
         source_dir = f"{self.results_dir}/{FOLDER_PREFIX}_{best_program.generation}"
         best_dir = Path(self.results_dir) / "best"
+
+        # Check if source directory exists (may not exist yet in parallel execution)
+        if not Path(source_dir).exists():
+            if self.verbose:
+                logger.debug(
+                    f"Source directory {source_dir} does not exist yet, "
+                    "skipping best copy"
+                )
+            return
 
         if best_dir.exists():
             shutil.rmtree(best_dir)

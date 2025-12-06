@@ -800,7 +800,7 @@ class DatabaseRequestHandler(http.server.SimpleHTTPRequestHandler):
                        p.combined_score, p.correct, p.island_idx,
                        p.embedding_pca_2d, p.embedding_pca_3d, p.embedding_cluster_id,
                        p.metadata->>'patch_name' as patch_name,
-                       p.metadata->'llm_result'->>'model_name' as model_name,
+                       p.metadata->>'model_name' as model_name,
                        CASE WHEN a.program_id IS NOT NULL THEN true ELSE false END as in_archive
                 FROM programs p
                 LEFT JOIN archive a ON p.id = a.program_id

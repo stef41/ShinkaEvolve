@@ -14,12 +14,22 @@ db_config:
   pg_password: "shinka_dev"
   num_islands: 2
   archive_size: 50
+  num_archive_inspirations: 2  # Reduced from 4 to save tokens
+  num_top_k_inspirations: 1     # Reduced from 2 to save tokens
 
-# Run indefinitely with 2 parallel jobs
+# Run indefinitely with 16 parallel jobs
 evo_config:
   num_generations: 1000000  # Infinite until manually stopped
-  max_parallel_jobs: 2  # 2 parallel jobs
-  init_program_path: examples/zork/best_gen745.py  # Start with best solution (35 points)
+  max_parallel_jobs: 16  # 16 parallel jobs to match worker count
+  disable_model_posteriors: true  # Use simple queue-based LLM selection for max utilization
+  init_program_path: examples/zork/initial.py  # Use smaller initial program to fit context
   embedding_model: "local:all-MiniLM-L6-v2"  # Use local sentence-transformers model
   llm_models:
     - openai/gpt-oss-120b@http://localhost:8000/v1
+    - llama@http://ruling-cub:8000/v1
+    - qwen@http://clever-jaguar:8000/v1
+  # Evaluation mode: "mind_api" (queue-based, official scoring) or "local" (Frotz direct, faster)
+  eval_mode: "local"  # Switch to "mind_api" for official benchmark submissions
+  mind_api_url: "http://localhost:8002"
+  benchmark_id: 4
+  max_eval_fix_attempts: 3  # Auto-fix crashed evaluations (0 to disable)

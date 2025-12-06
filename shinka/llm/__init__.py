@@ -5,6 +5,7 @@ from .dynamic_sampling import (
     BanditBase,
     AsymmetricUCB,
     FixedSampler,
+    QueueSampler,
 )
 
 __all__ = [
@@ -15,4 +16,5 @@ __all__ = [
     "BanditBase",
     "AsymmetricUCB",
     "FixedSampler",
+    "QueueSampler",
 ]

@@ -665,3 +665,103 @@ class FixedSampler(BanditBase):
         # Print directly to console
         console = Console()
         console.print(table)
+
+
+class QueueSampler(BanditBase):
+    """Simple round-robin queue sampler that cycles through LLMs without posterior updates.
+    
+    This sampler maximizes LLM utilization by maintaining a simple queue of available
+    models and continuously cycling through them, avoiding the computational overhead
+    of posterior probability calculations.
+    """
+    def __init__(
+        self,
+        n_arms: Optional[int] = None,
+        seed: Optional[int] = None,
+        arm_names: Optional[List[str]] = None,
+        **kwargs: Any,
+    ):
+        super().__init__(
+            n_arms=n_arms,
+            seed=seed,
+            arm_names=arm_names,
+            auto_decay=None,
+            shift_by_baseline=False,
+            shift_by_parent=False,
+        )
+        n = self.n_arms
+        # Initialize round-robin counter
+        self._counter = 0
+        # Equal probability for all arms
+        self.p = np.full(n, 1.0 / n, dtype=np.float64)
+
+    def update_submitted(
+        self,
+        arm: Arm,
+    ) -> float:
+        # No-op for queue sampler
+        return 0.0
+
+    def update(
+        self,
+        arm: Arm,
+        reward: Optional[float],
+        baseline: Optional[float] = None,
+    ) -> tuple[float, float]:
+        # No-op for queue sampler - no learning
+        return 0.0, baseline
+
+    def posterior(
+        self,
+        subset: Subset = None,
+        samples: Optional[int] = None,
+    ) -> np.ndarray:
+        # Always return equal probabilities for all arms (round-robin)
+        if subset is None:
+            return self.p.copy()
+        idx = self._resolve_subset(subset)
+        probs = self.p[idx]
+        s = probs.sum()
+        if s <= 0.0:
+            raise ValueError("subset probs sum to 0")
+        probs = probs / s
+        out = np.zeros(self.n_arms, dtype=np.float64)
+        out[idx] = probs
+        return out
+
+    def decay(self, factor: float) -> None:
+        # No-op for queue sampler
+        return None
+
+    def print_summary(self) -> None:
+        names = self._arm_names or [str(i) for i in range(self._n_arms)]
+        post = self.posterior()
+
+        # Create rich table
+        table = Table(
+            title="QueueSampler (round-robin, no posteriors)",
+            box=rich.box.ROUNDED,
+            show_header=True,
+            header_style="bold cyan",
+            width=120,
+        )
+
+        # Add columns
+        table.add_column("arm", style="white", width=28)
+        table.add_column("prob", justify="right", style="bright_green")
+
+        # Add rows
+        for i, name in enumerate(names):
+            # Split name by "/" and take last part, then last 28 chars
+            if isinstance(name, str):
+                display_name = name.split("/")[-1][-28:]
+            else:
+                display_name = str(name)
+            table.add_row(
+                display_name,
+                f"{post[i]:.4f}",
+            )
+
+        # Print directly to console
+        console = Console()
+        console.print(table)

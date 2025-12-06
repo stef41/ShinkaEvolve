@@ -70,8 +70,12 @@ def query_openai(
     """Query OpenAI model."""
     new_msg_history = msg_history + [{"role": "user", "content": msg}]
     
-    # Use standard chat completions for custom models (those with "/" in name)
-    if "/" in model:
+    # Use standard chat completions for:
+    # 1. Custom models (those with "/" in name like "openai/gpt-oss-120b")
+    # 2. Models not in OPENAI_MODELS (custom base URL endpoints like vLLM)
+    is_custom_model = "/" in model or model not in OPENAI_MODELS
+    
+    if is_custom_model:
         # Map max_output_tokens to max_tokens for standard chat completions API
         api_kwargs = kwargs.copy()
         if "max_output_tokens" in api_kwargs:
@@ -140,8 +144,14 @@ def query_openai(
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
 
-    input_cost = OPENAI_MODELS[model]["input_price"] * input_tokens
-    output_cost = OPENAI_MODELS[model]["output_price"] * output_tokens
+    # Calculate costs (use 0 for custom models not in pricing table)
+    if model in OPENAI_MODELS:
+        input_cost = OPENAI_MODELS[model]["input_price"] * input_tokens
+        output_cost = OPENAI_MODELS[model]["output_price"] * output_tokens
+    else:
+        # Custom endpoint model - no pricing available
+        input_cost = 0.0
+        output_cost = 0.0
     result = QueryResult(
         content=content,
         msg=msg,
